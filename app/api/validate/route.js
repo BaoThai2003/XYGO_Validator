@@ -225,7 +225,7 @@ export async function POST(request) {
       );
     }
 
-    const { deckString, archetype } = body;
+    const { deckString, archetype, validateAll } = body;
 
     // Validate input
     if (!deckString || typeof deckString !== "string" || !deckString.trim()) {
@@ -235,20 +235,25 @@ export async function POST(request) {
       );
     }
 
-    if (!archetype || typeof archetype !== "string") {
-      return NextResponse.json(
-        { error: "Thiếu trường `archetype`." },
-        { status: 400 },
-      );
-    }
+    // If validateAll is true, we don't need a specific archetype
+    const shouldValidateAll = validateAll === true;
 
-    if (!ARCHETYPE_RULES[archetype]) {
-      return NextResponse.json(
-        {
-          error: `Archetype "${archetype}" không tồn tại. Các archetype hợp lệ: ${Object.keys(ARCHETYPE_RULES).join(", ")}`,
-        },
-        { status: 400 },
-      );
+    if (!shouldValidateAll) {
+      if (!archetype || typeof archetype !== "string") {
+        return NextResponse.json(
+          { error: "Thiếu trường `archetype`." },
+          { status: 400 },
+        );
+      }
+
+      if (!ARCHETYPE_RULES[archetype]) {
+        return NextResponse.json(
+          {
+            error: `Archetype "${archetype}" không tồn tại. Các archetype hợp lệ: ${Object.keys(ARCHETYPE_RULES).join(", ")}`,
+          },
+          { status: 400 },
+        );
+      }
     }
 
     // 1. Parse deck string
@@ -305,43 +310,85 @@ export async function POST(request) {
       ...unknownSide.map((id) => ({ id, zone: "side" })),
     ];
 
-    // 4. Chạy Rules Engine
-    let validationResult;
-    try {
-      validationResult = validateDeck(archetype, {
-        mainDeck,
-        extraDeck,
-        sideDeck,
-      });
-    } catch (ruleErr) {
-      return NextResponse.json(
-        { error: `Lỗi Rules Engine: ${ruleErr.message}` },
-        { status: 500 },
-      );
-    }
+    // 4. Validate - either single archetype or all archetypes
+    if (shouldValidateAll) {
+      // Validate against ALL archetypes
+      const allResults = {};
+      for (const archetypeKey of Object.keys(ARCHETYPE_RULES)) {
+        try {
+          const validationResult = validateDeck(archetypeKey, {
+            mainDeck,
+            extraDeck,
+            sideDeck,
+          });
+          allResults[archetypeKey] = validationResult;
+        } catch (ruleErr) {
+          allResults[archetypeKey] = {
+            error: `Lỗi Rules Engine: ${ruleErr.message}`,
+            overallPass: false,
+          };
+        }
+      }
 
-    // 5. Build response
-    return NextResponse.json({
-      success: true,
-      archetype,
-      ...validationResult,
-      deckStats: {
-        mainCount: mainDeck.length,
-        extraCount: extraDeck.length,
-        sideCount: sideDeck.length,
-        unknownCards: allUnknown,
-      },
-      // Cảnh báo nếu có card không tìm thấy (nhưng không làm fail)
-      warnings:
-        allUnknown.length > 0
-          ? [
-              `${allUnknown.length} card không tìm thấy trong DB và bị bỏ qua: ${allUnknown
-                .slice(0, 5)
-                .map((u) => u.id)
-                .join(", ")}${allUnknown.length > 5 ? "..." : ""}`,
-            ]
-          : [],
-    });
+      // 5. Build response for validateAll
+      return NextResponse.json({
+        success: true,
+        validateAll: true,
+        results: allResults,
+        deckStats: {
+          mainCount: mainDeck.length,
+          extraCount: extraDeck.length,
+          sideCount: sideDeck.length,
+          unknownCards: allUnknown,
+        },
+        warnings:
+          allUnknown.length > 0
+            ? [
+                `${allUnknown.length} card không tìm thấy trong DB và bị bỏ qua: ${allUnknown
+                  .slice(0, 5)
+                  .map((u) => u.id)
+                  .join(", ")}${allUnknown.length > 5 ? "..." : ""}`,
+              ]
+            : [],
+      });
+    } else {
+      // Validate single archetype (original behavior)
+      let validationResult;
+      try {
+        validationResult = validateDeck(archetype, {
+          mainDeck,
+          extraDeck,
+          sideDeck,
+        });
+      } catch (ruleErr) {
+        return NextResponse.json(
+          { error: `Lỗi Rules Engine: ${ruleErr.message}` },
+          { status: 500 },
+        );
+      }
+
+      // 5. Build response for single archetype
+      return NextResponse.json({
+        success: true,
+        archetype,
+        ...validationResult,
+        deckStats: {
+          mainCount: mainDeck.length,
+          extraCount: extraDeck.length,
+          sideCount: sideDeck.length,
+          unknownCards: allUnknown,
+        },
+        warnings:
+          allUnknown.length > 0
+            ? [
+                `${allUnknown.length} card không tìm thấy trong DB và bị bỏ qua: ${allUnknown
+                  .slice(0, 5)
+                  .map((u) => u.id)
+                  .join(", ")}${allUnknown.length > 5 ? "..." : ""}`,
+              ]
+            : [],
+      });
+    }
   } catch (err) {
     console.error("[/api/validate] Unhandled error:", err);
     return NextResponse.json(

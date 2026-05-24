@@ -17,7 +17,7 @@ cd yugioh-validator
 npm run dev
 ```
 
-Mở trình duyệt tại `http://localhost:3000`.
+Mở trình duyệt tại `http://localhost:3002`.
 
 ---
 

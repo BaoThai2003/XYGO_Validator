@@ -1,53 +1,385 @@
+/* Yu-Gi-Oh! Tournament Validator — Global Styles */
+@import url("https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Rajdhani:wght@400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Import Google Fonts - Space Mono (monospace/code) + Rajdhani (gaming display) */
-@import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Rajdhani:wght@400;500;600;700&display=swap");
-
+/* ─── Design Tokens ─────────────────────────────── */
 :root {
-  --color-bg: #080c14;
-  --color-surface: #0d1420;
-  --color-border: #1e2a3a;
-  --color-accent: #eab308;
+  --bg-base: #030810;
+  --bg-surface: #05101e;
+  --bg-elevated: #081628;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-gold: rgba(250, 204, 21, 0.25);
+  --border-green: rgba(52, 211, 153, 0.25);
+  --border-red: rgba(248, 113, 113, 0.25);
+  --text-primary: #e2e8f0;
+  --text-secondary: rgba(148, 163, 184, 0.85);
+  --text-muted: rgba(100, 116, 139, 0.7);
+  --text-gold: #facc15;
+  --text-green: #34d399;
+  --text-red: #f87171;
+  --accent-gold: #facc15;
+  --accent-gold-dim: rgba(250, 204, 21, 0.12);
+  --accent-green: #10b981;
+  --accent-purple: #818cf8;
 }
 
-* {
+/* ─── Base Reset ─────────────────────────────────── */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background-color: var(--color-bg);
+  background-color: #030810;
+  color: #e2e8f0;
   font-family: "Rajdhani", system-ui, sans-serif;
   font-weight: 500;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Rajdhani", system-ui, sans-serif;
+  font-weight: 700;
+  color: #e2e8f0;
+  line-height: 1.1;
+}
+
+p {
+  line-height: 1.65;
+}
+
+a {
+  color: #facc15;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+a:hover {
+  color: #fde047;
 }
 
 code,
 pre,
 .font-mono,
-textarea {
+textarea,
+input[type="text"] {
   font-family: "Space Mono", "Courier New", monospace;
 }
 
-/* Custom scrollbar */
+/* ─── Scrollbar ──────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #0d1420;
+  background: #030810;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e2a3a;
+  background: rgba(250, 204, 21, 0.2);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2a3a50;
+  background: rgba(250, 204, 21, 0.4);
 }
 
-/* Select option styling for dark theme */
+select,
 select option {
-  background-color: #0d1420;
-  color: white;
+  background-color: #081628;
+  color: #e2e8f0;
+}
+:focus-visible {
+  outline: 2px solid rgba(250, 204, 21, 0.5);
+  outline-offset: 2px;
+}
+
+/* ═══════════════════════════════════════════════════
+   YGO-SPECIFIC ANIMATIONS & UTILITIES
+   (moved from page.jsx to fix Next.js hydration error)
+═══════════════════════════════════════════════════ */
+
+/* ─── Keyframes ──────────────────────────────────── */
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-12px) rotate(1deg);
+  }
+  66% {
+    transform: translateY(6px) rotate(-0.5deg);
+  }
+}
+
+@keyframes float-med {
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-18px) rotate(-1.5deg);
+  }
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes spin-slow-rev {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.6;
+    filter: blur(40px);
+  }
+  50% {
+    opacity: 1;
+    filter: blur(60px);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes border-pulse {
+  0%,
+  100% {
+    border-color: rgba(250, 204, 21, 0.3);
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.1);
+  }
+  50% {
+    border-color: rgba(250, 204, 21, 0.6);
+    box-shadow: 0 0 40px rgba(250, 204, 21, 0.25);
+  }
+}
+
+@keyframes holo-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* ─── Animation Utility Classes ──────────────────── */
+.animate-float-slow {
+  animation: float-slow 8s ease-in-out infinite;
+}
+.animate-float-med {
+  animation: float-med 6s ease-in-out infinite;
+}
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+.animate-spin-slow-rev {
+  animation: spin-slow-rev 15s linear infinite;
+}
+.animate-slide-up {
+  animation: slide-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out both;
+}
+.animate-pulse-glow {
+  animation: pulse-glow 6s ease-in-out infinite;
+}
+
+/* ─── Component Classes ──────────────────────────── */
+.glass-panel {
+  background: linear-gradient(
+    135deg,
+    rgba(5, 15, 35, 0.9) 0%,
+    rgba(8, 22, 48, 0.85) 100%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ygo-textarea {
+  background: rgba(2, 8, 20, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #e2e8f0;
+  font-family: "Space Mono", monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 16px;
+  width: 100%;
+  resize: vertical;
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+  min-height: 180px;
+}
+.ygo-textarea::placeholder {
+  color: rgba(100, 116, 139, 0.5);
+}
+.ygo-textarea:focus {
+  border-color: rgba(250, 204, 21, 0.4);
+  box-shadow:
+    0 0 0 3px rgba(250, 204, 21, 0.08),
+    0 0 30px rgba(250, 204, 21, 0.1);
+}
+
+.duel-grid {
+  background-image:
+    linear-gradient(rgba(250, 204, 21, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(250, 204, 21, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.holographic-title {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    #facc15 30%,
+    #f59e0b 50%,
+    #facc15 70%,
+    #ffffff 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
+}
+
+.validate-btn {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  padding: 14px 36px;
+  border-radius: 10px;
+  font-family: "Rajdhani", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: all 0.25s;
+}
+.validate-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    transparent 50%
+  );
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.validate-btn:hover::before {
+  opacity: 1;
+}
+.validate-btn::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -75%;
+  width: 50%;
+  height: 200%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.25),
+    transparent
+  );
+  transform: skewX(-20deg);
+  transition: left 0.4s;
+}
+.validate-btn:hover::after {
+  left: 125%;
+}
+
+.card-slot {
+  position: relative;
+}
+.card-slot::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(250, 204, 21, 0.4),
+    transparent
+  );
+}
+
+.section-title {
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }

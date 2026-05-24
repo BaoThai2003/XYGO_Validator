@@ -3,36 +3,31 @@
 /**
  * app/page.jsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Giao diện chính — Yu-Gi-Oh! Tournament Deck Validator
- * Aesthetic: Dark esport / cyberpunk YGO — neon trên nền đen
+ * Yu-Gi-Oh! Tournament Deck Validator — REDESIGNED Premium Gaming UI
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
-// ─── Icons (inline SVG để không cần thêm package) ─────────────────────────────
+// ─── SVG Icon Components ───────────────────────────────────────────────────────
 
-const IconCheck = () => (
+const IconCheck = ({ className = "w-5 h-5" }) => (
   <svg
-    viewBox="0 0 24 24"
+    className={className}
     fill="none"
-    className="w-5 h-5"
+    viewBox="0 0 24 24"
     stroke="currentColor"
     strokeWidth={2.5}
   >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M4.5 12.75l6 6 9-13.5"
-    />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
   </svg>
 );
 
-const IconX = () => (
+const IconX = ({ className = "w-5 h-5" }) => (
   <svg
-    viewBox="0 0 24 24"
+    className={className}
     fill="none"
-    className="w-5 h-5"
+    viewBox="0 0 24 24"
     stroke="currentColor"
     strokeWidth={2.5}
   >
@@ -44,40 +39,45 @@ const IconX = () => (
   </svg>
 );
 
-const IconLoader = () => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    className="w-5 h-5 animate-spin"
-    stroke="currentColor"
-    strokeWidth={2}
-  >
-    <path strokeLinecap="round" d="M12 3a9 9 0 1 0 9 9" />
+const IconLoader = ({ className = "w-5 h-5 animate-spin" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24">
+    <circle
+      className="opacity-25"
+      cx="12"
+      cy="12"
+      r="10"
+      stroke="currentColor"
+      strokeWidth="4"
+    />
+    <path
+      className="opacity-75"
+      fill="currentColor"
+      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+    />
   </svg>
 );
 
-const IconShield = () => (
+const IconShield = ({ className = "w-5 h-5" }) => (
   <svg
-    viewBox="0 0 24 24"
+    className={className}
     fill="none"
-    className="w-6 h-6"
+    viewBox="0 0 24 24"
     stroke="currentColor"
     strokeWidth={1.5}
   >
     <path
       strokeLinecap="round"
       strokeLinejoin="round"
-      d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25z"
+      d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
     />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
   </svg>
 );
 
-const IconWarning = () => (
+const IconWarning = ({ className = "w-5 h-5" }) => (
   <svg
-    viewBox="0 0 24 24"
+    className={className}
     fill="none"
-    className="w-4 h-4"
+    viewBox="0 0 24 24"
     stroke="currentColor"
     strokeWidth={2}
   >
@@ -89,231 +89,489 @@ const IconWarning = () => (
   </svg>
 );
 
-// ─── Deck Stats Card ───────────────────────────────────────────────────────────
+const IconChevronRight = ({ className = "w-4 h-4" }) => (
+  <svg
+    className={className}
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    strokeWidth={2.5}
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M8.25 4.5l7.5 7.5-7.5 7.5"
+    />
+  </svg>
+);
 
-function DeckStatBadge({ label, value, accent = false }) {
+const IconStar = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+  </svg>
+);
+
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
+
+function DetailModal({ archetype, result, onClose }) {
+  const passCount = result.results?.filter((r) => r.pass).length ?? 0;
+  const totalCount = result.results?.length ?? 0;
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
   return (
     <div
-      className={`flex flex-col items-center justify-center px-4 py-2 rounded border ${
-        accent
-          ? "border-yellow-500/50 bg-yellow-500/10 text-yellow-300"
-          : "border-slate-700 bg-slate-800/50 text-slate-300"
-      }`}
-    >
-      <span className="text-xl font-bold font-mono">{value}</span>
-      <span className="text-xs text-slate-500 mt-0.5 uppercase tracking-wider">
-        {label}
-      </span>
-    </div>
-  );
-}
-
-// ─── Single Check Result Row ───────────────────────────────────────────────────
-
-function CheckRow({ result, index }) {
-  return (
-    <div
-      className={`flex items-start gap-3 p-3 rounded-lg border transition-all ${
-        result.pass
-          ? "border-emerald-500/30 bg-emerald-500/5"
-          : "border-red-500/30 bg-red-500/5"
-      }`}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}
+      onClick={onClose}
     >
       <div
-        className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 ${
-          result.pass
-            ? "bg-emerald-500/20 text-emerald-400"
-            : "bg-red-500/20 text-red-400"
-        }`}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        style={{
+          background:
+            "linear-gradient(135deg, #050d1a 0%, #0a1628 50%, #050d1a 100%)",
+          border: "1px solid rgba(250,204,21,0.3)",
+          borderRadius: "16px",
+          boxShadow:
+            "0 0 60px rgba(250,204,21,0.15), 0 0 120px rgba(234,179,8,0.08), inset 0 1px 0 rgba(255,255,255,0.05)",
+        }}
       >
-        {result.pass ? <IconCheck /> : <IconX />}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p
-          className={`text-sm font-medium leading-snug ${
-            result.pass ? "text-emerald-300" : "text-red-300"
-          }`}
-        >
-          {result.message}
-        </p>
-        {result.detail && (
-          <p className="text-xs text-slate-500 mt-0.5 font-mono">
-            {result.detail}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Validation Result Panel ───────────────────────────────────────────────────
-
-function ResultPanel({ result }) {
-  if (!result) return null;
-
-  const {
-    overallPass,
-    archetypeLabel,
-    archetypeDescription,
-    results,
-    summary,
-    deckStats,
-    warnings,
-  } = result;
-
-  return (
-    <div
-      className={`rounded-xl border-2 overflow-hidden transition-all duration-500 ${
-        overallPass
-          ? "border-emerald-500/60 shadow-[0_0_30px_rgba(16,185,129,0.15)]"
-          : "border-red-500/60 shadow-[0_0_30px_rgba(239,68,68,0.15)]"
-      }`}
-    >
-      {/* Header banner */}
-      <div
-        className={`px-6 py-4 flex items-center gap-4 ${
-          overallPass
-            ? "bg-gradient-to-r from-emerald-900/60 to-emerald-900/20"
-            : "bg-gradient-to-r from-red-900/60 to-red-900/20"
-        }`}
-      >
+        {/* Corner decorations */}
         <div
-          className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl font-black flex-shrink-0 ${
-            overallPass
-              ? "bg-emerald-500/20 text-emerald-300"
-              : "bg-red-500/20 text-red-300"
-          }`}
-        >
-          {overallPass ? "✓" : "✗"}
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-black tracking-wide text-white">
-              {archetypeLabel}
-            </h2>
-            <span
-              className={`text-xs font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
-                overallPass
-                  ? "bg-emerald-500/30 text-emerald-300"
-                  : "bg-red-500/30 text-red-300"
-              }`}
+          className="absolute top-0 left-0 w-16 h-16 pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(250,204,21,0.2) 0%, transparent 60%)",
+            borderRadius: "16px 0 0 0",
+          }}
+        />
+        <div
+          className="absolute top-0 right-0 w-16 h-16 pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(225deg, rgba(250,204,21,0.2) 0%, transparent 60%)",
+            borderRadius: "0 16px 0 0",
+          }}
+        />
+
+        <div className="p-8">
+          {/* Close */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200"
+            style={{
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(239,68,68,0.2)";
+              e.currentTarget.style.borderColor = "rgba(239,68,68,0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+              e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+            }}
+          >
+            <IconX className="w-4 h-4 text-gray-400" />
+          </button>
+
+          {/* Header */}
+          <div className="mb-8">
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1.5 mb-4 rounded-full text-xs font-bold uppercase tracking-widest"
+              style={{
+                background: "rgba(250,204,21,0.15)",
+                border: "1px solid rgba(250,204,21,0.3)",
+                color: "#facc15",
+              }}
             >
-              {overallPass ? "PASS" : "FAIL"}
+              <IconStar className="w-3 h-3" />
+              Archetype Details
+            </div>
+            <h2
+              className="text-4xl font-black mb-3"
+              style={{
+                fontFamily: "'Rajdhani', sans-serif",
+                background: "linear-gradient(135deg, #fff 0%, #facc15 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {result.archetypeLabel ?? archetype}
+            </h2>
+            <p
+              className="text-sm leading-relaxed"
+              style={{ color: "rgba(148,163,184,0.9)" }}
+            >
+              {result.archetypeDescription ?? "Archetype condition analysis"}
+            </p>
+          </div>
+
+          {/* Stats */}
+          <div
+            className="mb-6 p-5 rounded-xl"
+            style={{
+              background: "rgba(250,204,21,0.06)",
+              border: "1px solid rgba(250,204,21,0.15)",
+            }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span
+                className="text-xs uppercase tracking-widest font-bold"
+                style={{ color: "rgba(148,163,184,0.8)" }}
+              >
+                Conditions Passed
+              </span>
+              <span
+                className="text-2xl font-black"
+                style={{
+                  color:
+                    passCount === totalCount
+                      ? "#34d399"
+                      : passCount > 0
+                        ? "#facc15"
+                        : "#f87171",
+                }}
+              >
+                {passCount} / {totalCount}
+              </span>
+            </div>
+            <div
+              className="w-full h-2 rounded-full"
+              style={{ background: "rgba(255,255,255,0.07)" }}
+            >
+              <div
+                className="h-2 rounded-full transition-all duration-700"
+                style={{
+                  width: `${totalCount > 0 ? (passCount / totalCount) * 100 : 0}%`,
+                  background:
+                    passCount === totalCount
+                      ? "linear-gradient(90deg, #10b981, #34d399)"
+                      : "linear-gradient(90deg, #f59e0b, #facc15)",
+                  boxShadow:
+                    passCount === totalCount
+                      ? "0 0 12px rgba(52,211,153,0.5)"
+                      : "0 0 12px rgba(250,204,21,0.5)",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Conditions */}
+          <div className="space-y-3">
+            <h3
+              className="text-xs uppercase tracking-widest font-bold mb-4"
+              style={{ color: "rgba(250,204,21,0.7)" }}
+            >
+              Condition Breakdown
+            </h3>
+            {result.results?.map((condition, idx) => (
+              <div
+                key={idx}
+                className="p-4 rounded-xl transition-all"
+                style={{
+                  background: condition.pass
+                    ? "rgba(52,211,153,0.06)"
+                    : "rgba(248,113,113,0.06)",
+                  border: `1px solid ${condition.pass ? "rgba(52,211,153,0.25)" : "rgba(248,113,113,0.25)"}`,
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5"
+                    style={{
+                      background: condition.pass
+                        ? "rgba(52,211,153,0.2)"
+                        : "rgba(248,113,113,0.2)",
+                    }}
+                  >
+                    {condition.pass ? (
+                      <IconCheck
+                        className="w-3.5 h-3.5"
+                        style={{ color: "#34d399" }}
+                      />
+                    ) : (
+                      <IconX
+                        className="w-3.5 h-3.5"
+                        style={{ color: "#f87171" }}
+                      />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p
+                      className="text-sm font-semibold leading-snug"
+                      style={{ color: condition.pass ? "#6ee7b7" : "#fca5a5" }}
+                    >
+                      {condition.message}
+                    </p>
+                    {condition.detail && (
+                      <p
+                        className="text-xs mt-1"
+                        style={{ color: "rgba(148,163,184,0.6)" }}
+                      >
+                        {condition.detail}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Archetype Card Component ─────────────────────────────────────────────────
+
+function ArchetypeCard({ archetypeKey, result, onClickDetails }) {
+  const passCount = result.results?.filter((r) => r.pass).length ?? 0;
+  const totalCount = result.results?.length ?? 0;
+  const pct = totalCount > 0 ? (passCount / totalCount) * 100 : 0;
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <button
+      onClick={() => onClickDetails(archetypeKey, result)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="group relative text-left w-full transition-all duration-300"
+      style={{ transform: hovered ? "translateY(-2px)" : "none" }}
+    >
+      {/* Outer glow */}
+      <div
+        className="absolute -inset-px rounded-xl transition-all duration-500"
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(52,211,153,0.5), rgba(16,185,129,0.3), rgba(52,211,153,0.2))",
+          opacity: hovered ? 1 : 0,
+          borderRadius: "12px",
+        }}
+      />
+      <div
+        className="relative p-5 rounded-xl overflow-hidden"
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(5,20,40,0.9) 0%, rgba(8,25,50,0.95) 100%)",
+          border: "1px solid rgba(52,211,153,0.3)",
+          boxShadow: hovered
+            ? "0 0 30px rgba(52,211,153,0.2), 0 0 60px rgba(52,211,153,0.08)"
+            : "none",
+        }}
+      >
+        {/* BG pattern */}
+        <div
+          className="absolute inset-0 opacity-10 pointer-events-none"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(52,211,153,0.1) 10px, rgba(52,211,153,0.1) 11px)",
+          }}
+        />
+
+        {/* Top row */}
+        <div className="relative flex items-start justify-between mb-4">
+          <div>
+            <div
+              className="text-xs uppercase tracking-widest font-bold mb-1"
+              style={{ color: "rgba(52,211,153,0.6)" }}
+            >
+              Archetype
+            </div>
+            <h3
+              className="text-lg font-black leading-tight"
+              style={{
+                fontFamily: "'Rajdhani', sans-serif",
+                color: hovered ? "#fff" : "#e2e8f0",
+                letterSpacing: "-0.01em",
+                transition: "color 0.2s",
+              }}
+            >
+              {result.archetypeLabel ?? archetypeKey}
+            </h3>
+          </div>
+          <div
+            className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+            style={{
+              background: "rgba(52,211,153,0.2)",
+              border: "1px solid rgba(52,211,153,0.4)",
+              boxShadow: "0 0 16px rgba(52,211,153,0.3)",
+            }}
+          >
+            <IconCheck className="w-5 h-5" style={{ color: "#34d399" }} />
+          </div>
+        </div>
+
+        {/* Progress */}
+        <div className="relative space-y-2 mb-4">
+          <div className="flex items-center justify-between text-xs">
+            <span style={{ color: "rgba(148,163,184,0.7)" }}>Conditions</span>
+            <span className="font-bold" style={{ color: "#34d399" }}>
+              {passCount}/{totalCount}
             </span>
           </div>
-          <p className="text-sm text-slate-400 mt-0.5">
-            {archetypeDescription}
-          </p>
-        </div>
-        <div className="ml-auto text-right flex-shrink-0">
-          <span className="text-2xl font-black font-mono text-white">
-            {summary.passed}
-            <span className="text-slate-500">/{summary.total}</span>
-          </span>
-          <p className="text-xs text-slate-500">checks pass</p>
-        </div>
-      </div>
-
-      {/* Deck Stats */}
-      <div className="px-6 py-3 bg-slate-900/40 border-b border-slate-800">
-        <div className="flex gap-3 flex-wrap">
-          <DeckStatBadge
-            label="Main Deck"
-            value={deckStats.mainCount}
-            accent={deckStats.mainCount >= 40}
-          />
-          <DeckStatBadge label="Extra Deck" value={deckStats.extraCount} />
-          <DeckStatBadge label="Side Deck" value={deckStats.sideCount} />
-          {deckStats.unknownCards.length > 0 && (
-            <DeckStatBadge
-              label="Unknown"
-              value={deckStats.unknownCards.length}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Check results */}
-      <div className="px-6 py-4 space-y-2 bg-slate-900/20">
-        <h3 className="text-xs uppercase tracking-widest text-slate-500 mb-3 font-bold">
-          Chi tiết kiểm tra
-        </h3>
-        {results.map((r) => (
-          <CheckRow key={r.index} result={r} index={r.index} />
-        ))}
-      </div>
-
-      {/* Warnings */}
-      {warnings && warnings.length > 0 && (
-        <div className="px-6 py-3 bg-yellow-900/10 border-t border-yellow-800/30">
-          {warnings.map((w, i) => (
+          <div
+            className="w-full h-1.5 rounded-full"
+            style={{ background: "rgba(255,255,255,0.06)" }}
+          >
             <div
-              key={i}
-              className="flex items-start gap-2 text-yellow-400/80 text-xs"
-            >
-              <IconWarning />
-              <span>{w}</span>
-            </div>
-          ))}
+              className="h-1.5 rounded-full transition-all duration-700"
+              style={{
+                width: `${pct}%`,
+                background: "linear-gradient(90deg, #10b981, #34d399)",
+                boxShadow: "0 0 8px rgba(52,211,153,0.5)",
+              }}
+            />
+          </div>
         </div>
-      )}
+
+        {/* Click prompt */}
+        <div
+          className="relative flex items-center gap-1.5 text-xs font-semibold transition-all duration-200"
+          style={{
+            color: hovered ? "rgba(52,211,153,0.9)" : "rgba(148,163,184,0.4)",
+          }}
+        >
+          View details <IconChevronRight className="w-3.5 h-3.5" />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ─── Failed Archetype Row ─────────────────────────────────────────────────────
+
+function FailedArchetypeRow({ archetypeKey, result, onClickDetails }) {
+  const passCount = result.results?.filter((r) => r.pass).length ?? 0;
+  const totalCount = result.results?.length ?? 0;
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <button
+      onClick={() => onClickDetails(archetypeKey, result)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="w-full text-left flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200"
+      style={{
+        background: hovered ? "rgba(248,113,113,0.06)" : "transparent",
+        border: `1px solid ${hovered ? "rgba(248,113,113,0.2)" : "rgba(255,255,255,0.05)"}`,
+      }}
+    >
+      <div
+        className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+        style={{
+          background: "rgba(248,113,113,0.1)",
+          border: "1px solid rgba(248,113,113,0.25)",
+        }}
+      >
+        <IconX className="w-4 h-4" style={{ color: "#f87171" }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <span
+          className="text-sm font-bold"
+          style={{ color: hovered ? "#fca5a5" : "#94a3b8" }}
+        >
+          {result.archetypeLabel ?? archetypeKey}
+        </span>
+      </div>
+      <div
+        className="flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full"
+        style={{
+          background: "rgba(248,113,113,0.1)",
+          color: "#f87171",
+          border: "1px solid rgba(248,113,113,0.2)",
+        }}
+      >
+        {passCount}/{totalCount}
+      </div>
+      <IconChevronRight
+        className="w-3.5 h-3.5 flex-shrink-0"
+        style={{ color: "rgba(148,163,184,0.3)" }}
+      />
+    </button>
+  );
+}
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+
+function StatCard({ label, value, icon, color, glow }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="relative rounded-2xl p-6 text-center transition-all duration-300"
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(5,15,30,0.95) 0%, rgba(8,20,40,0.9) 100%)",
+        border: `1px solid ${hovered ? color + "60" : color + "25"}`,
+        boxShadow: hovered ? `0 0 30px ${glow}30, 0 0 60px ${glow}10` : "none",
+        transform: hovered ? "translateY(-3px)" : "none",
+      }}
+    >
+      <div className="text-3xl mb-3">{icon}</div>
+      <div
+        className="text-4xl font-black mb-1.5"
+        style={{
+          fontFamily: "'Rajdhani', sans-serif",
+          background: `linear-gradient(135deg, #fff 0%, ${color} 100%)`,
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          textShadow: "none",
+          letterSpacing: "-0.02em",
+        }}
+      >
+        {value}
+      </div>
+      <div
+        className="text-xs uppercase tracking-widest font-bold"
+        style={{ color: "rgba(148,163,184,0.6)" }}
+      >
+        {label}
+      </div>
     </div>
   );
 }
 
-// ─── Main Page Component ───────────────────────────────────────────────────────
+// ─── Main Page Component ──────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const [archetypes, setArchetypes] = useState([]);
-  const [selectedArchetype, setSelectedArchetype] = useState("");
   const [deckString, setDeckString] = useState("");
   const [loading, setLoading] = useState(false);
   const [dbLoading, setDbLoading] = useState(true);
-  const [result, setResult] = useState(null);
+  const [results, setResults] = useState(null);
   const [error, setError] = useState("");
+  const [selectedArchetype, setSelectedArchetype] = useState(null);
+  const [selectedResult, setSelectedResult] = useState(null);
+  const [validateBtnHover, setValidateBtnHover] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const textareaRef = useRef(null);
 
-  // Khởi động: load danh sách archetype + warm-up card database
   useEffect(() => {
-    async function init() {
-      try {
-        // Fetch archetype list
-        const arcRes = await fetch("/api/validate");
-        const arcData = await arcRes.json();
-        if (arcData.archetypes) {
-          setArchetypes(arcData.archetypes);
-          setSelectedArchetype(arcData.archetypes[0]?.key ?? "");
-        }
-
-        // Warm-up card DB (fire-and-forget; độ trễ không ảnh hưởng UX)
-        fetch("/api/cards")
-          .then((r) => r.json())
-          .then((d) => {
-            console.log("[DB Warmup]", d.message);
-          })
-          .catch(() => {})
-          .finally(() => setDbLoading(false));
-      } catch {
-        setDbLoading(false);
-      }
-    }
-    init();
+    setMounted(true);
+    fetch("/api/cards")
+      .then((r) => r.json())
+      .catch(() => {})
+      .finally(() => setDbLoading(false));
   }, []);
 
   const handleValidate = useCallback(async () => {
     if (!deckString.trim()) {
-      setError(
-        "Vui lòng dán chuỗi YDKE hoặc nội dung file .ydk vào ô bên dưới.",
-      );
+      setError("Please paste your deck string (YDKE or .ydk format).");
       return;
     }
-    if (!selectedArchetype) {
-      setError("Vui lòng chọn Archetype cần kiểm tra.");
-      return;
-    }
-
     setLoading(true);
     setError("");
-    setResult(null);
+    setResults(null);
+    setSelectedArchetype(null);
 
     try {
       const res = await fetch("/api/validate", {
@@ -321,250 +579,1097 @@ export default function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           deckString: deckString.trim(),
-          archetype: selectedArchetype,
+          validateAll: true,
         }),
       });
-
       const data = await res.json();
-
       if (!res.ok || data.error) {
-        setError(data.error ?? `Lỗi ${res.status}: không xác định.`);
+        setError(data.error ?? `Error ${res.status}`);
       } else {
-        setResult(data);
+        setResults(data);
       }
     } catch (err) {
-      setError(`Không thể kết nối đến server: ${err.message}`);
+      setError(`Connection error: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  }, [deckString, selectedArchetype]);
+  }, [deckString]);
 
   const handleClear = () => {
     setDeckString("");
-    setResult(null);
+    setResults(null);
     setError("");
+    setSelectedArchetype(null);
+    setSelectedResult(null);
+    textareaRef.current?.focus();
   };
 
-  const selectedArchetypeInfo = archetypes.find(
-    (a) => a.key === selectedArchetype,
-  );
+  const passedArchetypes = results?.results
+    ? Object.entries(results.results)
+        .filter(([, r]) => r.overallPass)
+        .map(([key, r]) => ({ key, result: r }))
+    : [];
+
+  const failedArchetypes = results?.results
+    ? Object.entries(results.results)
+        .filter(([, r]) => !r.overallPass)
+        .map(([key, r]) => ({ key, result: r }))
+    : [];
 
   return (
-    <div className="min-h-screen bg-[#080c14] text-white relative overflow-hidden">
-      {/* Background grid pattern */}
+    <>
       <div
-        className="absolute inset-0 opacity-[0.03]"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
-          backgroundSize: "40px 40px",
-        }}
-      />
+        className="min-h-screen relative"
+        style={{ background: "#030810", color: "#e2e8f0" }}
+      >
+        {/* ══════════════════════════════════════════════════
+            BACKGROUND LAYER — Duel Arena Environment
+        ══════════════════════════════════════════════════ */}
+        <div
+          className="fixed inset-0 pointer-events-none overflow-hidden"
+          style={{ zIndex: 0 }}
+        >
+          {/* Duel grid floor */}
+          <div className="duel-grid absolute inset-0" />
 
-      {/* Neon glow blobs */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-900/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-900/15 rounded-full blur-[120px] pointer-events-none" />
+          {/* Primary atmosphere orbs */}
+          <div
+            className="absolute animate-pulse-glow"
+            style={{
+              top: "-15%",
+              right: "-10%",
+              width: "700px",
+              height: "700px",
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, rgba(234,179,8,0.12) 0%, rgba(234,179,8,0.04) 40%, transparent 70%)",
+              animation: "pulse-glow 6s ease-in-out infinite",
+            }}
+          />
+          <div
+            className="absolute"
+            style={{
+              bottom: "-20%",
+              left: "-15%",
+              width: "800px",
+              height: "800px",
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, rgba(99,102,241,0.1) 0%, rgba(99,102,241,0.03) 40%, transparent 70%)",
+              animation: "pulse-glow 8s ease-in-out infinite 2s",
+            }}
+          />
+          <div
+            className="absolute"
+            style={{
+              top: "40%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "600px",
+              height: "600px",
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, rgba(6,182,212,0.05) 0%, transparent 70%)",
+              animation: "pulse-glow 10s ease-in-out infinite 4s",
+            }}
+          />
 
-      <div className="relative z-10 max-w-3xl mx-auto px-4 py-10">
-        {/* ── Header ── */}
-        <header className="mb-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 border border-yellow-500/60 rounded flex items-center justify-center text-yellow-400">
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
-              </svg>
+          {/* Floating card silhouettes */}
+          <div
+            className="animate-float-slow absolute opacity-[0.04]"
+            style={{
+              top: "10%",
+              right: "5%",
+              width: "120px",
+              height: "168px",
+              border: "2px solid rgba(250,204,21,0.8)",
+              borderRadius: "8px",
+              background: "rgba(250,204,21,0.05)",
+              transform: "rotate(12deg)",
+            }}
+          />
+          <div
+            className="animate-float-med absolute opacity-[0.03]"
+            style={{
+              top: "55%",
+              right: "8%",
+              width: "90px",
+              height: "126px",
+              border: "2px solid rgba(99,102,241,0.8)",
+              borderRadius: "8px",
+              background: "rgba(99,102,241,0.05)",
+              transform: "rotate(-8deg)",
+            }}
+          />
+          <div
+            className="animate-float-slow absolute opacity-[0.04]"
+            style={{
+              bottom: "15%",
+              left: "3%",
+              width: "100px",
+              height: "140px",
+              border: "2px solid rgba(6,182,212,0.8)",
+              borderRadius: "8px",
+              background: "rgba(6,182,212,0.05)",
+              transform: "rotate(-15deg)",
+              animationDelay: "3s",
+            }}
+          />
+          <div
+            className="animate-float-med absolute opacity-[0.03]"
+            style={{
+              top: "25%",
+              left: "6%",
+              width: "80px",
+              height: "112px",
+              border: "1.5px solid rgba(250,204,21,0.6)",
+              borderRadius: "8px",
+              transform: "rotate(6deg)",
+              animationDelay: "2s",
+            }}
+          />
+
+          {/* Spinning holographic ring */}
+          <div
+            className="animate-spin-slow absolute"
+            style={{
+              top: "50%",
+              left: "50%",
+              width: "900px",
+              height: "900px",
+              transform: "translate(-50%, -50%)",
+              border: "1px solid rgba(250,204,21,0.04)",
+              borderRadius: "50%",
+              borderTopColor: "rgba(250,204,21,0.12)",
+            }}
+          />
+          <div
+            className="animate-spin-slow-rev absolute"
+            style={{
+              top: "50%",
+              left: "50%",
+              width: "700px",
+              height: "700px",
+              transform: "translate(-50%, -50%)",
+              border: "1px solid rgba(99,102,241,0.04)",
+              borderRadius: "50%",
+              borderBottomColor: "rgba(99,102,241,0.1)",
+            }}
+          />
+
+          {/* Diagonal holo lines */}
+          <div
+            className="absolute inset-0 opacity-[0.025]"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(45deg, rgba(250,204,21,0.5) 0px, transparent 1px, transparent 80px, rgba(250,204,21,0.5) 81px)",
+            }}
+          />
+
+          {/* Scanline effect */}
+          <div
+            className="absolute inset-x-0 h-48 opacity-[0.015]"
+            style={{
+              background:
+                "linear-gradient(to bottom, transparent, rgba(250,204,21,0.5), transparent)",
+              animation: "scanline 10s linear infinite",
+            }}
+          />
+
+          {/* Top vignette */}
+          <div
+            className="absolute inset-x-0 top-0 h-32"
+            style={{
+              background:
+                "linear-gradient(to bottom, rgba(3,8,16,0.8), transparent)",
+            }}
+          />
+        </div>
+
+        {/* ══════════════════════════════════════════════════
+            HEADER — Tournament System Identity
+        ══════════════════════════════════════════════════ */}
+        <header
+          className="relative"
+          style={{
+            zIndex: 10,
+            borderBottom: "1px solid rgba(255,255,255,0.04)",
+          }}
+        >
+          <div
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(3,8,20,0.95) 0%, rgba(5,12,28,0.8) 100%)",
+              backdropFilter: "blur(20px)",
+            }}
+          >
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+              {/* Top bar */}
+              <div
+                className="flex items-center justify-between py-3 border-b"
+                style={{ borderColor: "rgba(255,255,255,0.04)" }}
+              >
+                <div
+                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest"
+                  style={{ color: "rgba(250,204,21,0.7)" }}
+                >
+                  <span style={{ color: "#facc15" }}>◆</span> Official
+                  Tournament System
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{
+                      background: dbLoading ? "#f59e0b" : "#34d399",
+                      boxShadow: dbLoading
+                        ? "0 0 8px #f59e0b"
+                        : "0 0 8px #34d399",
+                      animation: dbLoading ? "pulse 1.5s infinite" : "none",
+                    }}
+                  />
+                  <span
+                    className="text-xs font-semibold uppercase tracking-wider"
+                    style={{ color: dbLoading ? "#fbbf24" : "#6ee7b7" }}
+                  >
+                    {dbLoading ? "Loading DB..." : "DB Online"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Main hero */}
+              <div className="py-12 sm:py-16">
+                {/* Badge */}
+                <div
+                  className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-[0.15em]"
+                  style={{
+                    background: "rgba(250,204,21,0.08)",
+                    border: "1px solid rgba(250,204,21,0.2)",
+                    color: "rgba(250,204,21,0.8)",
+                  }}
+                >
+                  <IconShield className="w-3.5 h-3.5" />
+                  Archetype Condition Validator
+                </div>
+
+                {/* Main title */}
+                <div className="mb-6">
+                  <h1
+                    style={{
+                      fontFamily: "'Rajdhani', sans-serif",
+                      fontSize: "clamp(2.5rem, 7vw, 5rem)",
+                      fontWeight: 900,
+                      lineHeight: 0.95,
+                      letterSpacing: "-0.02em",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "block",
+                        color: "rgba(255,255,255,0.9)",
+                      }}
+                    >
+                      Yu-Gi-Oh!
+                    </span>
+                    <span
+                      className="holographic-title"
+                      style={{ display: "block" }}
+                    >
+                      Deck Validator
+                    </span>
+                  </h1>
+                </div>
+
+                <p
+                  style={{
+                    maxWidth: "560px",
+                    fontSize: "15px",
+                    lineHeight: 1.7,
+                    color: "rgba(148,163,184,0.85)",
+                    marginBottom: "24px",
+                  }}
+                >
+                  Validate your tournament deck against archetype-specific
+                  conditions. Paste your YDKE link or YDK file content below —
+                  the system will instantly analyze every registered archetype.
+                </p>
+
+                {/* Stats strip */}
+                <div className="flex flex-wrap items-center gap-6">
+                  {[
+                    { label: "Archetypes", value: "3+" },
+                    { label: "Conditions Checked", value: "Auto" },
+                    { label: "DB Updated", value: "24h" },
+                  ].map((s) => (
+                    <div key={s.label} className="flex items-center gap-2">
+                      <span
+                        style={{
+                          fontFamily: "'Rajdhani', sans-serif",
+                          fontSize: "20px",
+                          fontWeight: 900,
+                          color: "#facc15",
+                        }}
+                      >
+                        {s.value}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          color: "rgba(148,163,184,0.5)",
+                          letterSpacing: "0.05em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {s.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <span className="text-xs uppercase tracking-[0.3em] text-slate-500 font-bold">
-              Yu-Gi-Oh! Tournament Tool
-            </span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
-            Deck{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600">
-              Validator
-            </span>
-          </h1>
-          <p className="text-slate-400 mt-2 text-sm leading-relaxed">
-            Kiểm tra Deck của bạn có đáp ứng{" "}
-            <span className="text-slate-300">Deck Condition</span> của Archetype
-            hay không. Hỗ trợ định dạng{" "}
-            <code className="text-yellow-400/80 text-xs bg-yellow-400/10 px-1.5 py-0.5 rounded font-mono">
-              ydke://
-            </code>{" "}
-            và file{" "}
-            <code className="text-yellow-400/80 text-xs bg-yellow-400/10 px-1.5 py-0.5 rounded font-mono">
-              .ydk
-            </code>
-            .
-          </p>
-
-          {/* DB status indicator */}
-          <div className="mt-3 flex items-center gap-2">
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${
-                dbLoading ? "bg-yellow-400 animate-pulse" : "bg-emerald-400"
-              }`}
-            />
-            <span className="text-xs text-slate-500">
-              {dbLoading
-                ? "Đang khởi động Card Database..."
-                : "Card Database sẵn sàng"}
-            </span>
           </div>
         </header>
 
-        {/* ── Main Form ── */}
-        <div className="space-y-5">
-          {/* Archetype Selector */}
-          <div className="space-y-2">
-            <label className="block text-xs uppercase tracking-widest text-slate-400 font-bold">
-              Chọn Archetype
-            </label>
-            <div className="relative">
-              <select
-                value={selectedArchetype}
-                onChange={(e) => {
-                  setSelectedArchetype(e.target.value);
-                  setResult(null);
-                  setError("");
+        {/* ══════════════════════════════════════════════════
+            MAIN CONTENT
+        ══════════════════════════════════════════════════ */}
+        <main
+          className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
+          style={{ zIndex: 10 }}
+        >
+          <div className="grid lg:grid-cols-5 gap-8 items-start">
+            {/* ─── LEFT COLUMN: Input Panel (3/5 width) ─── */}
+            <div className="lg:col-span-3 animate-slide-up">
+              <div
+                className="card-slot rounded-2xl overflow-hidden"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(5,15,35,0.95) 0%, rgba(8,22,50,0.9) 100%)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  boxShadow:
+                    "0 0 0 1px rgba(0,0,0,0.5), 0 25px 60px rgba(0,0,0,0.4)",
                 }}
-                className="w-full appearance-none bg-slate-900 border border-slate-700 rounded-lg px-4 py-3
-                           text-white font-medium focus:outline-none focus:border-yellow-500/60
-                           focus:ring-1 focus:ring-yellow-500/30 transition-all cursor-pointer
-                           pr-10"
               >
-                {archetypes.length === 0 ? (
-                  <option value="">Đang tải...</option>
-                ) : (
-                  archetypes.map((a) => (
-                    <option key={a.key} value={a.key}>
-                      {a.label}
-                    </option>
-                  ))
-                )}
-              </select>
-              {/* Custom dropdown arrow */}
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-                <svg
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="w-4 h-4"
+                {/* Panel header */}
+                <div
+                  className="px-7 py-5 flex items-center gap-3"
+                  style={{
+                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    background: "rgba(255,255,255,0.02)",
+                  }}
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                    clipRule="evenodd"
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center"
+                    style={{
+                      background: "rgba(250,204,21,0.15)",
+                      border: "1px solid rgba(250,204,21,0.3)",
+                    }}
+                  >
+                    <span style={{ fontSize: "14px" }}>📋</span>
+                  </div>
+                  <div>
+                    <div
+                      className="section-title text-sm"
+                      style={{ color: "rgba(255,255,255,0.9)" }}
+                    >
+                      Deck Input
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "rgba(148,163,184,0.5)",
+                        marginTop: "1px",
+                      }}
+                    >
+                      YDKE or YDK format
+                    </div>
+                  </div>
+                  {deckString.trim() && (
+                    <div
+                      className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                      style={{
+                        background: "rgba(250,204,21,0.1)",
+                        border: "1px solid rgba(250,204,21,0.2)",
+                      }}
+                    >
+                      <div
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: "#facc15" }}
+                      />
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          color: "#facc15",
+                          fontWeight: 700,
+                          letterSpacing: "0.1em",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        Ready
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Textarea */}
+                <div className="p-7">
+                  <textarea
+                    ref={textareaRef}
+                    className="ygo-textarea"
+                    value={deckString}
+                    onChange={(e) => {
+                      setDeckString(e.target.value);
+                      setResults(null);
+                      setError("");
+                    }}
+                    placeholder={`Paste YDKE link:\nydke://abc123xyz789...\n\nOr YDK file content:\n#main\n12345678\n87654321\n#extra\n11111111\n!side\n22222222`}
+                    rows={9}
+                    spellCheck={false}
                   />
-                </svg>
+
+                  {/* Error */}
+                  {error && (
+                    <div
+                      className="mt-4 flex items-start gap-3 p-4 rounded-xl animate-fade-in"
+                      style={{
+                        background: "rgba(239,68,68,0.08)",
+                        border: "1px solid rgba(239,68,68,0.25)",
+                      }}
+                    >
+                      <div
+                        className="flex-shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center rounded-full"
+                        style={{ background: "rgba(239,68,68,0.2)" }}
+                      >
+                        <IconX
+                          className="w-3 h-3"
+                          style={{ color: "#f87171" }}
+                        />
+                      </div>
+                      <p
+                        style={{
+                          fontSize: "13px",
+                          color: "#fca5a5",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {error}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={handleValidate}
+                      disabled={loading || !deckString.trim()}
+                      onMouseEnter={() => setValidateBtnHover(true)}
+                      onMouseLeave={() => setValidateBtnHover(false)}
+                      className="validate-btn flex-1 flex items-center justify-center gap-2.5"
+                      style={
+                        loading || !deckString.trim()
+                          ? {
+                              background: "rgba(255,255,255,0.04)",
+                              color: "rgba(100,116,139,0.6)",
+                              cursor: "not-allowed",
+                              border: "1px solid rgba(255,255,255,0.06)",
+                            }
+                          : {
+                              background: validateBtnHover
+                                ? "linear-gradient(135deg, #fde047 0%, #f59e0b 50%, #d97706 100%)"
+                                : "linear-gradient(135deg, #facc15 0%, #f59e0b 50%, #ea580c 100%)",
+                              color: "#0a0a0a",
+                              boxShadow: validateBtnHover
+                                ? "0 0 30px rgba(250,204,21,0.5), 0 0 60px rgba(250,204,21,0.2), 0 8px 25px rgba(0,0,0,0.4)"
+                                : "0 0 20px rgba(250,204,21,0.3), 0 4px 15px rgba(0,0,0,0.3)",
+                              transform: validateBtnHover
+                                ? "translateY(-2px)"
+                                : "none",
+                              border: "none",
+                            }
+                      }
+                    >
+                      {loading ? (
+                        <>
+                          <IconLoader className="w-4 h-4" />
+                          <span>Analyzing Deck...</span>
+                        </>
+                      ) : !deckString.trim() ? (
+                        <>
+                          <span>⚡</span>
+                          <span>Paste Deck to Validate</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>⚡</span>
+                          <span>Validate Deck</span>
+                        </>
+                      )}
+                    </button>
+
+                    {deckString && (
+                      <button
+                        onClick={handleClear}
+                        className="validate-btn flex items-center gap-2"
+                        style={{
+                          background: "rgba(255,255,255,0.04)",
+                          color: "rgba(148,163,184,0.8)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          padding: "14px 20px",
+                          flexShrink: 0,
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background =
+                            "rgba(239,68,68,0.1)";
+                          e.currentTarget.style.borderColor =
+                            "rgba(239,68,68,0.25)";
+                          e.currentTarget.style.color = "#fca5a5";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background =
+                            "rgba(255,255,255,0.04)";
+                          e.currentTarget.style.borderColor =
+                            "rgba(255,255,255,0.08)";
+                          e.currentTarget.style.color = "rgba(148,163,184,0.8)";
+                        }}
+                      >
+                        <IconX className="w-4 h-4" />
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Format guide */}
+              <div
+                className="mt-4 p-4 rounded-xl"
+                style={{
+                  background: "rgba(250,204,21,0.03)",
+                  border: "1px solid rgba(250,204,21,0.1)",
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      flexShrink: 0,
+                      marginTop: "1px",
+                    }}
+                  >
+                    💡
+                  </span>
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        color: "rgba(148,163,184,0.7)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Export your deck from{" "}
+                      <strong style={{ color: "rgba(250,204,21,0.8)" }}>
+                        YGO Omega
+                      </strong>
+                      ,{" "}
+                      <strong style={{ color: "rgba(250,204,21,0.8)" }}>
+                        YGO ProDeck
+                      </strong>
+                      , or any compatible app as a YDKE link or .ydk file. The
+                      system automatically detects the format.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-            {/* Archetype description hint */}
-            {selectedArchetypeInfo && (
-              <p className="text-xs text-slate-500 pl-1">
-                <span className="text-slate-600">Điều kiện: </span>
-                {selectedArchetypeInfo.description}
-              </p>
-            )}
+
+            {/* ─── RIGHT COLUMN: Info Panel (2/5 width) ─── */}
+            <div
+              className="lg:col-span-2 space-y-5 animate-slide-up"
+              style={{ animationDelay: "0.1s" }}
+            >
+              {/* Active archetypes */}
+              <div
+                className="rounded-2xl overflow-hidden"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(5,15,35,0.95) 0%, rgba(8,22,50,0.9) 100%)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}
+              >
+                <div
+                  className="px-6 py-4 flex items-center gap-2"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+                >
+                  <span style={{ fontSize: "14px" }}>🏆</span>
+                  <span
+                    className="section-title text-sm"
+                    style={{ color: "rgba(255,255,255,0.85)" }}
+                  >
+                    Active Archetypes
+                  </span>
+                </div>
+                <div className="p-4 space-y-2.5">
+                  {[
+                    {
+                      key: "MALICE",
+                      label: "M∀LICE",
+                      desc: "≥25 DARK Monster + ≥45 Main",
+                      color: "#818cf8",
+                    },
+                    {
+                      key: "RYZEAL",
+                      label: "Ryzeal",
+                      desc: "≥10 LIGHT/Thunder + ≥7 Xyz Extra",
+                      color: "#facc15",
+                    },
+                    {
+                      key: "ARTMAGE",
+                      label: "Artmage",
+                      desc: "≥3 Attr + ≥10 Pendulum + ≥10 Spell",
+                      color: "#34d399",
+                    },
+                  ].map((arch) => (
+                    <div
+                      key={arch.key}
+                      className="flex items-center gap-3 p-3 rounded-xl"
+                      style={{
+                        background: "rgba(255,255,255,0.02)",
+                        border: "1px solid rgba(255,255,255,0.04)",
+                      }}
+                    >
+                      <div
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{
+                          background: arch.color,
+                          boxShadow: `0 0 8px ${arch.color}`,
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            color: "#e2e8f0",
+                            fontFamily: "'Rajdhani', sans-serif",
+                          }}
+                        >
+                          {arch.label}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: "rgba(100,116,139,0.8)",
+                            marginTop: "1px",
+                          }}
+                        >
+                          {arch.desc}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* How it works */}
+              <div
+                className="rounded-2xl overflow-hidden"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(5,15,35,0.95) 0%, rgba(8,22,50,0.9) 100%)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}
+              >
+                <div
+                  className="px-6 py-4 flex items-center gap-2"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+                >
+                  <span style={{ fontSize: "14px" }}>⚙️</span>
+                  <span
+                    className="section-title text-sm"
+                    style={{ color: "rgba(255,255,255,0.85)" }}
+                  >
+                    How It Works
+                  </span>
+                </div>
+                <div className="p-5 space-y-4">
+                  {[
+                    {
+                      n: "01",
+                      title: "Paste Deck",
+                      desc: "YDKE link or .ydk file text",
+                    },
+                    {
+                      n: "02",
+                      title: "Auto-Detect",
+                      desc: "Format recognized instantly",
+                    },
+                    {
+                      n: "03",
+                      title: "DB Lookup",
+                      desc: "Cards resolved via YGOPRODeck",
+                    },
+                    {
+                      n: "04",
+                      title: "Rule Check",
+                      desc: "All archetypes analyzed",
+                    },
+                  ].map((step) => (
+                    <div key={step.n} className="flex items-start gap-3">
+                      <div
+                        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black"
+                        style={{
+                          background: "rgba(250,204,21,0.1)",
+                          border: "1px solid rgba(250,204,21,0.2)",
+                          color: "#facc15",
+                          fontFamily: "'Space Mono', monospace",
+                        }}
+                      >
+                        {step.n}
+                      </div>
+                      <div>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            color: "#cbd5e1",
+                            marginBottom: "2px",
+                          }}
+                        >
+                          {step.title}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: "rgba(100,116,139,0.8)",
+                          }}
+                        >
+                          {step.desc}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* YDKE / YDK Input */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs uppercase tracking-widest text-slate-400 font-bold">
-                Deck String
-              </label>
-              {deckString && (
-                <button
-                  onClick={handleClear}
-                  className="text-xs text-slate-600 hover:text-slate-400 transition-colors"
+          {/* ══════════════════════════════════════════════════
+              RESULTS SECTION
+          ══════════════════════════════════════════════════ */}
+          {results && (
+            <div className="mt-12 animate-fade-in">
+              {/* Section header */}
+              <div className="flex items-center gap-4 mb-8">
+                <div
+                  className="flex-1 h-px"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, rgba(250,204,21,0.3), transparent)",
+                  }}
+                />
+                <div
+                  className="flex items-center gap-2.5 px-4 py-2 rounded-full"
+                  style={{
+                    background: "rgba(250,204,21,0.08)",
+                    border: "1px solid rgba(250,204,21,0.2)",
+                  }}
                 >
-                  Xóa
-                </button>
+                  <span style={{ fontSize: "13px" }}>📊</span>
+                  <span
+                    className="section-title text-sm"
+                    style={{ color: "#facc15" }}
+                  >
+                    Analysis Results
+                  </span>
+                </div>
+                <div
+                  className="flex-1 h-px"
+                  style={{
+                    background:
+                      "linear-gradient(270deg, rgba(250,204,21,0.3), transparent)",
+                  }}
+                />
+              </div>
+
+              {/* Deck stats */}
+              {results.deckStats && (
+                <div className="grid grid-cols-3 gap-4 mb-10">
+                  <StatCard
+                    label="Main Deck"
+                    value={results.deckStats.mainCount}
+                    icon="🃏"
+                    color="#facc15"
+                    glow="#facc15"
+                  />
+                  <StatCard
+                    label="Extra Deck"
+                    value={results.deckStats.extraCount}
+                    icon="✨"
+                    color="#818cf8"
+                    glow="#818cf8"
+                  />
+                  <StatCard
+                    label="Side Deck"
+                    value={results.deckStats.sideCount}
+                    icon="🔮"
+                    color="#34d399"
+                    glow="#34d399"
+                  />
+                </div>
+              )}
+
+              {/* Passed archetypes */}
+              {passedArchetypes.length > 0 ? (
+                <div className="mb-10">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "rgba(52,211,153,0.2)",
+                        border: "1px solid rgba(52,211,153,0.4)",
+                      }}
+                    >
+                      <IconCheck
+                        className="w-3.5 h-3.5"
+                        style={{ color: "#34d399" }}
+                      />
+                    </div>
+                    <h2
+                      className="section-title text-base"
+                      style={{ color: "#6ee7b7" }}
+                    >
+                      Eligible Archetypes ({passedArchetypes.length})
+                    </h2>
+                    <div
+                      className="flex-1 h-px"
+                      style={{ background: "rgba(52,211,153,0.15)" }}
+                    />
+                  </div>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {passedArchetypes.map(({ key, result }) => (
+                      <ArchetypeCard
+                        key={key}
+                        archetypeKey={key}
+                        result={result}
+                        onClickDetails={(arch, res) => {
+                          setSelectedArchetype(arch);
+                          setSelectedResult(res);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="mb-10 p-10 rounded-2xl text-center"
+                  style={{
+                    background: "rgba(239,68,68,0.04)",
+                    border: "1px solid rgba(239,68,68,0.15)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "48px",
+                      marginBottom: "12px",
+                      opacity: 0.5,
+                    }}
+                  >
+                    🔒
+                  </div>
+                  <h3
+                    style={{
+                      fontFamily: "'Rajdhani', sans-serif",
+                      fontSize: "22px",
+                      fontWeight: 900,
+                      color: "#e2e8f0",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    No Archetypes Eligible
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "14px",
+                      color: "rgba(100,116,139,0.8)",
+                      maxWidth: "400px",
+                      margin: "0 auto",
+                    }}
+                  >
+                    This deck does not meet the required conditions for any
+                    registered archetype. Review the failed conditions below and
+                    adjust your deck composition.
+                  </p>
+                </div>
+              )}
+
+              {/* Failed archetypes (collapsible list) */}
+              {failedArchetypes.length > 0 && (
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{
+                        background: "rgba(248,113,113,0.15)",
+                        border: "1px solid rgba(248,113,113,0.3)",
+                      }}
+                    >
+                      <IconX
+                        className="w-3.5 h-3.5"
+                        style={{ color: "#f87171" }}
+                      />
+                    </div>
+                    <h2
+                      className="section-title text-sm"
+                      style={{ color: "rgba(248,113,113,0.7)" }}
+                    >
+                      Not Eligible ({failedArchetypes.length})
+                    </h2>
+                    <div
+                      className="flex-1 h-px"
+                      style={{ background: "rgba(248,113,113,0.1)" }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        color: "rgba(100,116,139,0.5)",
+                      }}
+                    >
+                      Click to see conditions
+                    </span>
+                  </div>
+                  <div
+                    className="rounded-xl overflow-hidden space-y-1 p-2"
+                    style={{
+                      background: "rgba(5,10,25,0.6)",
+                      border: "1px solid rgba(255,255,255,0.04)",
+                    }}
+                  >
+                    {failedArchetypes.map(({ key, result }) => (
+                      <FailedArchetypeRow
+                        key={key}
+                        archetypeKey={key}
+                        result={result}
+                        onClickDetails={(arch, res) => {
+                          setSelectedArchetype(arch);
+                          setSelectedResult(res);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Warnings */}
+              {results.warnings?.length > 0 && (
+                <div
+                  className="flex items-start gap-3 p-4 rounded-xl"
+                  style={{
+                    background: "rgba(245,158,11,0.06)",
+                    border: "1px solid rgba(245,158,11,0.2)",
+                  }}
+                >
+                  <IconWarning
+                    className="w-4 h-4 flex-shrink-0 mt-0.5"
+                    style={{ color: "#fbbf24" }}
+                  />
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "rgba(253,230,138,0.85)",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {results.warnings[0]}
+                  </p>
+                </div>
               )}
             </div>
-            <textarea
-              value={deckString}
-              onChange={(e) => {
-                setDeckString(e.target.value);
-                setResult(null);
-                setError("");
+          )}
+        </main>
+
+        {/* ══════════════════════════════════════════════════
+            FOOTER
+        ══════════════════════════════════════════════════ */}
+        <footer
+          className="relative py-10 mt-8"
+          style={{
+            zIndex: 10,
+            borderTop: "1px solid rgba(255,255,255,0.04)",
+            background: "rgba(3,8,16,0.6)",
+          }}
+        >
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <div
+                className="h-px w-16"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent, rgba(250,204,21,0.3))",
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "14px",
+                  color: "rgba(250,204,21,0.5)",
+                  letterSpacing: "0.2em",
+                }}
+              >
+                ◆
+              </span>
+              <div
+                className="h-px w-16"
+                style={{
+                  background:
+                    "linear-gradient(270deg, transparent, rgba(250,204,21,0.3))",
+                }}
+              />
+            </div>
+            <p
+              style={{
+                fontSize: "12px",
+                color: "rgba(100,116,139,0.6)",
+                marginBottom: "6px",
               }}
-              placeholder={`Dán chuỗi YDKE vào đây:\nydke://abc123...!xyz456...!pqr789...!\n\nHoặc nội dung file .ydk:\n#main\n12345678\n87654321\n#extra\n11111111\n!side\n22222222`}
-              rows={8}
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3
-                         text-slate-200 text-sm font-mono placeholder:text-slate-700
-                         focus:outline-none focus:border-yellow-500/60 focus:ring-1
-                         focus:ring-yellow-500/30 transition-all resize-y leading-relaxed"
-              spellCheck={false}
-            />
-            <p className="text-xs text-slate-600 pl-1">
-              Hỗ trợ: <code className="text-slate-500">ydke://...</code> hoặc
-              text .ydk (có #main / #extra)
+            >
+              Card database powered by{" "}
+              <a
+                href="https://ygoprodeck.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "rgba(250,204,21,0.6)",
+                  textDecoration: "none",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "#facc15";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "rgba(250,204,21,0.6)";
+                }}
+              >
+                YGOPRODeck
+              </a>{" "}
+              • Refreshed every 24 hours
+            </p>
+            <p style={{ fontSize: "11px", color: "rgba(71,85,105,0.6)" }}>
+              Yu-Gi-Oh! Tournament Deck Validator System — Professional
+              Archetype Analysis
             </p>
           </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="flex items-start gap-3 p-4 rounded-lg border border-red-500/40 bg-red-500/5">
-              <div className="text-red-400 flex-shrink-0 mt-0.5">
-                <IconX />
-              </div>
-              <p className="text-sm text-red-300 leading-relaxed">{error}</p>
-            </div>
-          )}
-
-          {/* Validate Button */}
-          <button
-            onClick={handleValidate}
-            disabled={loading || !deckString.trim() || !selectedArchetype}
-            className={`w-full py-4 rounded-lg font-black text-sm uppercase tracking-[0.15em]
-                        flex items-center justify-center gap-2.5 transition-all duration-200
-                        ${
-                          loading || !deckString.trim() || !selectedArchetype
-                            ? "bg-slate-800 text-slate-600 cursor-not-allowed"
-                            : "bg-gradient-to-r from-yellow-500 to-yellow-600 text-black hover:from-yellow-400 hover:to-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.25)] hover:shadow-[0_0_30px_rgba(234,179,8,0.4)] active:scale-[0.98]"
-                        }`}
-          >
-            {loading ? (
-              <>
-                <IconLoader />
-                Đang xử lý...
-              </>
-            ) : (
-              <>
-                <IconShield />
-                Validate Deck
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* ── Result Panel ── */}
-        {result && (
-          <div className="mt-8">
-            <ResultPanel result={result} />
-          </div>
-        )}
-
-        {/* ── Footer ── */}
-        <footer className="mt-16 text-center text-xs text-slate-700 space-y-1">
-          <p>
-            Dữ liệu card từ{" "}
-            <a
-              href="https://ygoprodeck.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-slate-600 hover:text-slate-400 transition-colors"
-            >
-              YGOPRODeck
-            </a>{" "}
-            · Cache 24h
-          </p>
-          <p>
-            Yu-Gi-Oh! Tournament Deck Validator — for official tournament use
-          </p>
         </footer>
       </div>
-    </div>
+
+      {/* ─── Modal ─── */}
+      {selectedResult && (
+        <DetailModal
+          archetype={selectedArchetype}
+          result={selectedResult}
+          onClose={() => {
+            setSelectedArchetype(null);
+            setSelectedResult(null);
+          }}
+        />
+      )}
+    </>
   );
 }
