@@ -1,36 +1,139 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Yu-Gi-Oh! Tournament Deck Validator
 
-## Getting Started
+Ứng dụng giúp ban tổ chức giải đấu tự động kiểm tra Deck Condition cho từng Archetype.
 
-First, run the development server:
+---
+
+## Cài đặt nhanh
 
 ```bash
+# 1. Tạo project Next.js mới
+npx create-next-app@latest yugioh-validator --app --js --tailwind --no-src-dir --import-alias "@/*"
+cd yugioh-validator
+
+# 2. Copy các file trong repo này vào đúng vị trí (xem cấu trúc bên dưới)
+
+# 3. Chạy dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở trình duyệt tại `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Cấu trúc File
 
-## Learn More
+```
+yugioh-validator/
+├── app/
+│   ├── globals.css            ← Tailwind + custom font/scrollbar
+│   ├── layout.jsx             ← Root layout
+│   ├── page.jsx               ← UI chính
+│   └── api/
+│       ├── validate/
+│       │   └── route.js       ← POST /api/validate (parse + validate)
+│       └── cards/
+│           └── route.js       ← GET /api/cards (warm-up cache)
+├── utils/
+│   ├── ygoprodeck.js          ← Fetch & cache Card Database
+│   └── rulesEngine.js         ← Rules Engine + Archetype definitions
+├── next.config.js
+├── tailwind.config.js
+├── postcss.config.js
+└── package.json
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Cách thêm Archetype mới
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Mở file `utils/rulesEngine.js` và thêm vào object `ARCHETYPE_RULES`:
 
-## Deploy on Vercel
+```js
+MY_ARCHETYPE: {
+  label: "Tên Hiển Thị",
+  description: "Mô tả điều kiện ngắn.",
+  checks: [
+    // Dùng helper minCountCheck cho rule đơn giản:
+    minCountCheck("FIRE Monster", (c) => c.isMonster && c.attribute === "FIRE", 8, "mainDeck"),
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+    // Hoặc viết custom function:
+    ({ mainDeck, extraDeck }) => {
+      const count = mainDeck.filter(c => c.level === 8 && c.isMonster).length;
+      return {
+        pass: count >= 6,
+        message: count >= 6
+          ? `✓ Level 8 Monster: ${count}`
+          : `✗ Chỉ có ${count}/6 Monster Level 8.`,
+        detail: `Level 8: ${count} lá`,
+      };
+    },
+  ],
+},
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## CardData Schema (dùng trong checks)
+
+| Field         | Type    | Ví dụ                                |
+| ------------- | ------- | ------------------------------------ |
+| `id`          | number  | `46986414`                           |
+| `name`        | string  | `"Blue-Eyes White Dragon"`           |
+| `type`        | string  | `"Normal Monster"`, `"Spell Card"`   |
+| `frameType`   | string  | `"normal"`, `"xyz"`, `"pendulum"`    |
+| `race`        | string  | `"Dragon"`, `"Thunder"`, `"Warrior"` |
+| `attribute`   | string  | `"LIGHT"`, `"DARK"`, `"FIRE"`        |
+| `level`       | number  | `8` (hoặc Rank/Link Rating)          |
+| `isMonster`   | boolean | `true`/`false`                       |
+| `isSpell`     | boolean | `true`/`false`                       |
+| `isTrap`      | boolean | `true`/`false`                       |
+| `isXyz`       | boolean | `true`/`false`                       |
+| `isSynchro`   | boolean | `true`/`false`                       |
+| `isFusion`    | boolean | `true`/`false`                       |
+| `isLink`      | boolean | `true`/`false`                       |
+| `isPendulum`  | boolean | `true`/`false`                       |
+| `isExtraDeck` | boolean | `true`/`false`                       |
+| `archetype`   | string  | `"Blue-Eyes"`, `"HERO"`              |
+| `scale`       | number? | Pendulum Scale                       |
+
+---
+
+## Định dạng Deck được hỗ trợ
+
+### YDKE String
+
+```
+ydke://base64main!base64extra!base64side!
+```
+
+Copy từ YGOPro Percy, EDOPro, hoặc ygoprodeck.com deck builder.
+
+### YDK Text File
+
+```
+#main
+46986414
+89631139
+#extra
+38517737
+!side
+44519536
+```
+
+---
+
+## Lưu ý về Card Database Cache
+
+- Lần đầu chạy, app sẽ fetch ~13.000 card từ YGOPRODeck (~5-10 giây tùy mạng).
+- Sau đó cache trong memory server 24 giờ — hoàn toàn không gọi API lại.
+- Deploy trên serverless (Vercel) → mỗi cold start sẽ fetch lại. Nâng cấp lên Upstash Redis nếu cần persistent cache.
+
+---
+
+## Tech Stack
+
+- **Next.js 14** (App Router) — Full-stack framework
+- **Tailwind CSS** — Styling
+- **YGOPRODeck API** — Card database (miễn phí, không cần API key)
+- **YDKE parsing** — Tự implement (không phụ thuộc package ngoài)
