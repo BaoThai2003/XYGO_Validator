@@ -215,44 +215,6 @@ export const ARCHETYPE_RULES = {
   // 10 WINS REQUIREMENT
   // ══════════════════════════════════════════════════════════════════════════
 
-  MARINCESS: {
-    label: "Marincess",
-    description:
-      "Main Deck: ≥ 10 Water Monster. Extra Deck: ≥ 5 Water Link Monster.",
-    checks: [
-      ({ mainDeck }) => {
-        const waterMonsters = mainDeck.filter(
-          (c) => c.isMonster && c.attribute === "WATER",
-        );
-        const count = waterMonsters.length;
-        const required = 10;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Water Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Water Monster không đủ: ${count}/${required} lá.`,
-          detail: `Water Monster: ${count}`,
-        };
-      },
-      ({ extraDeck }) => {
-        const waterLinks = extraDeck.filter(
-          (c) => c.isLink && c.attribute === "WATER",
-        );
-        const count = waterLinks.length;
-        const required = 5;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Water Link Monster (Extra): ${count} (yêu cầu ≥ ${required})`
-              : `✗ Water Link Monster không đủ: ${count}/${required} lá.`,
-          detail: `Water Link: ${count}`,
-        };
-      },
-    ],
-  },
-
   MIKANKO: {
     label: "Mikanko",
     description: "Main Deck: ≥ 6 Monster + ≥ 3 Equip Spell.",
@@ -326,26 +288,6 @@ export const ARCHETYPE_RULES = {
   // ══════════════════════════════════════════════════════════════════════════
   // 20 WINS REQUIREMENT
   // ══════════════════════════════════════════════════════════════════════════
-
-  BLUE_EYES: {
-    label: "Blue-Eyes",
-    description: "Main Deck: ≥ 6 Level 8 Monster.",
-    checks: [
-      ({ mainDeck }) => {
-        const level8 = mainDeck.filter((c) => c.isMonster && c.level === 8);
-        const count = level8.length;
-        const required = 6;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Level 8 Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Level 8 Monster không đủ: ${count}/${required} lá.`,
-          detail: `Level 8: ${count}`,
-        };
-      },
-    ],
-  },
 
   CHIMERA: {
     label: "Chimera (Illusion)",
@@ -440,51 +382,42 @@ export const ARCHETYPE_RULES = {
     ],
   },
 
-  DARK_MAGICIAN: {
-    label: "Dark Magician",
+  ARCANA_FORCE: {
+    label: "Arcana Force",
     description:
-      "Main Deck: ≥ 5 Spellcaster Monster + ≥ 6 Spell + ≥ 1 Level 7/6/1.",
+      "Main Deck: ≥ 5 Fairy Monster + ≥ 1 lá bài có hiệu ứng Coin toss.",
     checks: [
       ({ mainDeck }) => {
-        const spellcasters = mainDeck.filter(
-          (c) => c.isMonster && c.race === "Spellcaster",
+        const fairies = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Fairy",
         );
-        const count = spellcasters.length;
+        const count = fairies.length;
         const required = 5;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Spellcaster Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Spellcaster không đủ: ${count}/${required} lá.`,
-          detail: `Spellcaster: ${count}`,
+              ? `✓ Fairy Monster: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Fairy Monster không đủ: ${count}/${required} lá.`,
+          detail: `Fairy: ${count}`,
         };
       },
       ({ mainDeck }) => {
-        const spells = mainDeck.filter((c) => c.isSpell);
-        const count = spells.length;
-        const required = 6;
+        const coinToss = mainDeck.filter(
+          (c) =>
+            c.desc?.toLowerCase().includes("coin") ||
+            c.desc?.toLowerCase().includes("toss") ||
+            c.desc?.toLowerCase().includes("flip a coin"),
+        );
+        const count = coinToss.length;
+        const required = 1;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Spell Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Spell không đủ: ${count}/${required} lá.`,
-          detail: `Spell: ${count}`,
-        };
-      },
-      ({ mainDeck }) => {
-        const level7 = mainDeck.filter((c) => c.isMonster && c.level === 7);
-        const level6 = mainDeck.filter((c) => c.isMonster && c.level === 6);
-        const level1 = mainDeck.filter((c) => c.isMonster && c.level === 1);
-        const pass =
-          level7.length >= 1 && level6.length >= 1 && level1.length >= 1;
-        return {
-          pass,
-          message: pass
-            ? `✓ Level 7/6/1 Monster: ${level7.length}/${level6.length}/${level1.length}`
-            : `✗ Thiếu Level 7/6/1: ${level7.length}/${level6.length}/${level1.length}.`,
-          detail: `Lv7: ${level7.length} | Lv6: ${level6.length} | Lv1: ${level1.length}`,
+              ? `✓ Coin toss card: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Không tìm thấy lá bài Coin toss.`,
+          detail: `Coin toss: ${count}`,
         };
       },
     ],
@@ -531,42 +464,6 @@ export const ARCHETYPE_RULES = {
             ? `✓ Fusion Monster: ${count} với ${attrCount} Attribute (yêu cầu ≥ ${required})`
             : `✗ Fusion Monster không đủ: ${count}/${required} hoặc Attribute: ${attrCount}/${required}.`,
           detail: `Fusion: ${count} | Attributes: ${attrCount}`,
-        };
-      },
-    ],
-  },
-
-  LIVE_TWIN: {
-    label: "Live-Twin / Evil-Twin",
-    description:
-      "Main Deck: ≥ 10 Cyberse/Fiend Monster. Extra Deck: ≥ 2 Link-2.",
-    checks: [
-      ({ mainDeck }) => {
-        const cybersefiend = mainDeck.filter(
-          (c) => c.isMonster && (c.race === "Cyberse" || c.race === "Fiend"),
-        );
-        const count = cybersefiend.length;
-        const required = 10;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Cyberse/Fiend Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Cyberse/Fiend không đủ: ${count}/${required} lá.`,
-          detail: `Cyberse/Fiend: ${count}`,
-        };
-      },
-      ({ extraDeck }) => {
-        const link2 = extraDeck.filter((c) => c.isLink && c.linkRating === 2);
-        const count = link2.length;
-        const required = 2;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Link-2 Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Link-2 Monster không đủ: ${count}/${required} lá.`,
-          detail: `Link-2: ${count}`,
         };
       },
     ],
@@ -796,6 +693,82 @@ export const ARCHETYPE_RULES = {
               ? `✓ Level 6 Dragon (LIGHT/DARK): ${count} (yêu cầu ≥ ${required})`
               : `✗ Level 6 Dragon không đủ: ${count}/${required} lá.`,
           detail: `Lv6 Dragon: ${count}`,
+        };
+      },
+    ],
+  },
+
+  DRAGON_RULER: {
+    label: "Dragon Ruler",
+    description:
+      "Main Deck: ≥ 4 Attribute (FIRE/WATER/EARTH/WIND bắt buộc) + ≥ 10 Dragon Monster.",
+    checks: [
+      ({ mainDeck }) => {
+        const dragons = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Dragon",
+        );
+        const attributes = new Set(
+          dragons.map((c) => c.attribute).filter(Boolean),
+        );
+        const hasAll = ["FIRE", "WATER", "EARTH", "WIND"].every((a) =>
+          attributes.has(a),
+        );
+        const pass = hasAll;
+        return {
+          pass,
+          message: pass
+            ? `✓ Dragon Attribute: ${[...attributes].join(", ")} (đủ FIRE/WATER/EARTH/WIND)`
+            : `✗ Thiếu Attribute: cần FIRE/WATER/EARTH/WIND, hiện có: ${[...attributes].join(", ") || "không có"}.`,
+          detail: `Dragon Attributes: ${[...attributes].join(", ")}`,
+        };
+      },
+      ({ mainDeck }) => {
+        const dragons = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Dragon",
+        );
+        const count = dragons.length;
+        const required = 10;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Dragon Monster: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Dragon Monster không đủ: ${count}/${required} lá.`,
+          detail: `Dragon: ${count}`,
+        };
+      },
+    ],
+  },
+
+  METALFOES: {
+    label: "Metalfoes",
+    description:
+      "Main Deck: ≥ 8 Pendulum Monster. Extra Deck: ≥ 3 Fusion Monster.",
+    checks: [
+      ({ mainDeck }) => {
+        const pendulums = mainDeck.filter((c) => c.isPendulum && c.isMonster);
+        const count = pendulums.length;
+        const required = 8;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Pendulum Monster: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Pendulum Monster không đủ: ${count}/${required} lá.`,
+          detail: `Pendulum: ${count}`,
+        };
+      },
+      ({ extraDeck }) => {
+        const fusions = extraDeck.filter((c) => c.isFusion);
+        const count = fusions.length;
+        const required = 3;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Fusion Monster (Extra): ${count} (yêu cầu ≥ ${required})`
+              : `✗ Fusion Monster không đủ: ${count}/${required} lá.`,
+          detail: `Fusion: ${count}`,
         };
       },
     ],
@@ -1482,12 +1455,12 @@ export const ARCHETYPE_RULES = {
 
   WHITE_FOREST: {
     label: "White Forest",
-    description: "Main Deck: ≥ 15 Spell Card. Extra Deck: ≥ 5 Synchro.",
+    description: "Main Deck: ≥ 12 Spell Card. Extra Deck: ≥ 5 Synchro.",
     checks: [
       ({ mainDeck }) => {
         const spells = mainDeck.filter((c) => c.isSpell);
         const count = spells.length;
-        const required = 15;
+        const required = 12;
         return {
           pass: count >= required,
           message:
