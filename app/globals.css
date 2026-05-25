@@ -383,3 +383,193 @@ select option {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+
+/* ═══════════════════════════════════════════════════
+   RESPONSIVE DESIGN & MOBILE OPTIMIZATION
+═══════════════════════════════════════════════════ */
+
+/* ─── Mobile Styles (< 640px) ────────────────────── */
+@media (max-width: 639px) {
+  body {
+    font-size: 15px;
+  }
+
+  h1 {
+    font-size: 28px;
+    line-height: 1.2;
+  }
+
+  h2 {
+    font-size: 24px;
+  }
+
+  h3 {
+    font-size: 20px;
+  }
+
+  p {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* Larger tap targets for mobile */
+  button,
+  input,
+  textarea,
+  select {
+    min-height: 44px;
+    font-size: 16px !important; /* Prevent zoom on focus */
+  }
+
+  .ygo-textarea {
+    min-height: 200px;
+    font-size: 14px;
+  }
+
+  /* Stack layout on mobile */
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Reduce padding on mobile */
+  main {
+    padding: 12px !important;
+  }
+
+  header {
+    padding: 12px !important;
+  }
+
+  /* Reduce card padding */
+  [class*="px-8"],
+  [class*="px-7"],
+  [class*="px-6"] {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  [class*="py-8"],
+  [class*="py-7"] {
+    padding-top: 16px !important;
+    padding-bottom: 16px !important;
+  }
+
+  /* Adjust gap */
+  .gap-8 {
+    gap: 16px !important;
+  }
+
+  /* Simplify animations on mobile for performance */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ─── Small devices (640px - 1024px) ────────────── */
+@media (min-width: 640px) and (max-width: 1024px) {
+  h1 {
+    font-size: 36px;
+  }
+
+  h2 {
+    font-size: 28px;
+  }
+
+  p {
+    font-size: 16px;
+  }
+}
+
+/* ─── Landscape mobile ────────────────────────────── */
+@media (max-height: 600px) and (orientation: landscape) {
+  main {
+    padding: 12px !important;
+  }
+
+  header {
+    padding: 8px 12px !important;
+  }
+
+  h1 {
+    font-size: 24px;
+  }
+
+  .ygo-textarea {
+    min-height: 120px;
+  }
+}
+
+/* ─── High DPI / Retina Displays ─────────────────── */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* Slightly sharper borders */
+  border {
+    border-width: 0.5px;
+  }
+}
+
+/* ─── Touch Device Optimizations ─────────────────── */
+@media (hover: none) and (pointer: coarse) {
+  /* Increase button padding for touch */
+  button {
+    padding: 16px 24px !important;
+  }
+
+  /* Remove hover effects that don't work on touch */
+  a:hover {
+    color: inherit;
+  }
+
+  /* Improve touch target size */
+  input[type="number"],
+  input[type="text"],
+  textarea {
+    padding: 16px !important;
+  }
+
+  /* Add active state instead of hover */
+  .validate-btn:active {
+    transform: translateY(-1px);
+  }
+}
+
+/* ─── Dark mode & Light mode support ──────────── */
+@media (prefers-color-scheme: dark) {
+  /* Dark mode is already the default */
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-base: #f8f9fa;
+    --bg-surface: #ffffff;
+    --text-primary: #1a1a1a;
+    --text-secondary: rgba(50, 50, 50, 0.8);
+    --text-muted: rgba(100, 100, 100, 0.7);
+  }
+
+  body {
+    background-color: #f8f9fa;
+    color: #1a1a1a;
+  }
+}
+
+/* ─── Print Styles ────────────────────────────────── */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+
+  header,
+  [class*="animate"] {
+    animation: none !important;
+  }
+
+  .glass-panel {
+    border: 1px solid black;
+    background: white;
+  }
+}

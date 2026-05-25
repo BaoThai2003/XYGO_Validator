@@ -3,80 +3,284 @@
 /**
  * app/page.jsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Yu-Gi-Oh! Tournament Deck Validator — REDESIGNED Premium Gaming UI
+ * Yu-Gi-Oh! Tournament Deck Validator — REDESIGNED with Modern Gaming UI
+ *
+ * Features:
+ * - Two-step validation flow (Team Stats → Deck Input)
+ * - Scaling archetype unlock conditions
+ * - Enhanced visualization (eligible/ineligible states)
+ * - Deck statistics display
+ * - Full Vietnamese localization
+ * - Improved typography and responsive design
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
-// ─── Archetype Card Component ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// TRANSLATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+const i18n = {
+  officialTournament: "Hệ Thống Giải Đấu Chính Thức",
+  loadingDB: "Đang tải CSDL...",
+  dbOnline: "CSDL Trực Tuyến",
+  validatorTitle: "Trình Kiểm Định Deck Tournament",
+  validatorDesc:
+    "Xác thực deck của bạn theo các điều kiện riêng biệt cho từng Archetype. Nhập thông tin đội ngũ của bạn trước, sau đó dán YDKE hoặc nội dung tệp YDK.",
 
-function ArchetypeCard({ archetypeKey, result }) {
+  // Step 1: Team Stats
+  step: "Bước",
+  stepTeamInfo: "Thông Tin Đội Ngũ",
+  teamWins: "Số Trận Thắng",
+  teamLosses: "Số Trận Thua",
+  unlockedArchetypes: "Số Archetype Đã Mở Khóa",
+  proceedToDecks: "Tiếp Tục Đến Deck",
+  requiredFields: "Vui lòng nhập tất cả các trường",
+
+  // Step 2: Deck Input
+  stepDeckInput: "Nhập Deck",
+  deckInputPlaceholder:
+    "Dán liên kết YDKE:\nydke://abc123xyz789...\n\nHoặc nội dung tệp YDK:\n#main\n12345678\n87654321\n#extra\n11111111\n!side\n22222222",
+  ydkeLink: "Liên Kết YDKE",
+  ydkFile: "Tệp YDK",
+  plaintextDeck: "Plaintext Deck",
+  validateDeck: "Xác Thực Deck",
+  analyzingDeck: "Đang Phân Tích Deck...",
+  pasteDeckToValidate: "Dán Deck Để Xác Thực",
+  clear: "Xóa",
+  ready: "Sẵn Sàng",
+
+  // Export options
+  exportOptions: "Tùy Chọn Nhập Deck",
+  exportDesc:
+    "Xuất deck từ YGO Omega, YGO ProDeck hoặc bất kỳ ứng dụng tương thích nào dưới dạng liên kết YDKE hoặc tệp .ydk. Hệ thống tự động phát hiện định dạng.",
+
+  // Results
+  validationResults: "Kết Quả Xác Thực",
+  eligibleArchetypes: "Archetype Đủ Điều Kiện",
+  ineligibleArchetypes: "Archetype Không Đủ Điều Kiện",
+  noEligible: "Không có Archetype nào đủ điều kiện",
+  noIneligible: "Tất cả Archetype đều đủ điều kiện!",
+
+  // Deck Statistics
+  deckStatistics: "Thống Kê Deck",
+  totalArchetypes: "Tổng Archetypes",
+  totalMonsters: "Tổng Monster",
+  totalSpells: "Tổng Spell",
+  totalTraps: "Tổng Trap",
+  mainDeck: "Main Deck",
+  extraDeck: "Extra Deck",
+  sideDeck: "Side Deck",
+  mainTypes: "Loại Chính",
+
+  // Archetype conditions
+  deckCondition: "Điều Kiện Deck",
+  teamCondition: "Điều Kiện Đội",
+  winsRequired: "Trận Thắng Yêu Cầu",
+  lessonsRequired: "Trận Thua Yêu Cầu",
+  conditionMet: "✓ Đạt",
+  conditionUnmet: "✗ Chưa Đạt",
+  unlockedProgress: "Tiến Độ Mở Khóa",
+
+  // Errors
+  connectionError: "Lỗi Kết Nối",
+  error: "Lỗi",
+  tryAgain: "Thử Lại",
+  backToTeamStats: "Quay Lại Thông Tin Đội",
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Calculate additional unlock requirements based on number of unlocked archetypes
+ * Formula: max(0, unlockedArchetypes - 5) * 5
+ */
+function calculateArchetypeScaling(unlockedArchetypes) {
+  return Math.max(0, unlockedArchetypes - 5) * 5;
+}
+
+/**
+ * Parse deck string and extract statistics
+ */
+function parseDeckStats(deckData) {
+  if (!deckData || !deckData.deck) return null;
+
+  const mainDeck = deckData.deck.main || [];
+  const extraDeck = deckData.deck.extra || [];
+  const sideDeck = deckData.deck.side || [];
+
+  const countByType = (cards) => {
+    const types = {};
+    cards.forEach((card) => {
+      const type = card.type || "Unknown";
+      types[type] = (types[type] || 0) + 1;
+    });
+    return types;
+  };
+
+  const countByRace = (cards) => {
+    const races = {};
+    cards.forEach((card) => {
+      if (card.race) {
+        races[card.race] = (races[card.race] || 0) + 1;
+      }
+    });
+    return races;
+  };
+
+  const mainTypes = countByType(mainDeck);
+  const archetypeCount = new Set(
+    [...mainDeck, ...extraDeck, ...sideDeck]
+      .map((c) => c.archetype)
+      .filter(Boolean),
+  ).size;
+
+  return {
+    archetypes: archetypeCount,
+    mainDeckCount: mainDeck.length,
+    extraDeckCount: extraDeck.length,
+    sideDeckCount: sideDeck.length,
+    monsterCount: [...mainDeck, ...extraDeck].filter((c) => c.isMonster).length,
+    spellCount: [...mainDeck, ...sideDeck].filter(
+      (c) => c.type === "Spell Card",
+    ).length,
+    trapCount: [...mainDeck, ...sideDeck].filter((c) => c.type === "Trap Card")
+      .length,
+    mainTypes: Object.entries(mainTypes)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([type, count]) => `${type} (${count})`),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ARCHETYPE CARD COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ArchetypeCard({
+  archetypeKey,
+  result,
+  teamWins,
+  teamLosses,
+  unlockedArchetypes,
+  isEligible,
+}) {
   const [hovered, setHovered] = useState(false);
+  const additionalWins = calculateArchetypeScaling(unlockedArchetypes);
+
+  const glowColor = isEligible
+    ? "rgba(52,211,153,0.7)"
+    : "rgba(100,116,139,0.3)";
+  const borderColor = isEligible
+    ? "rgba(52,211,153,0.5)"
+    : "rgba(100,116,139,0.2)";
+  const bgOpacity = isEligible ? 0.95 : 0.3;
+  const textColor = isEligible ? "#e2e8f0" : "rgba(100,116,139,0.5)";
 
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className="relative text-left w-full transition-all duration-300"
-      style={{ transform: hovered ? "translateY(-2px)" : "none" }}
+      style={{
+        transform: hovered && isEligible ? "translateY(-3px)" : "none",
+        filter: isEligible ? "none" : "grayscale(1) blur(0.5px)",
+        opacity: isEligible ? 1 : 0.35,
+      }}
     >
-      {/* Outer glow */}
+      {/* Glow effect for eligible */}
+      {isEligible && (
+        <div
+          className="absolute -inset-px rounded-xl transition-all duration-500"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(52,211,153,0.5), rgba(16,185,129,0.3), rgba(52,211,153,0.2))",
+            opacity: hovered ? 1 : 0,
+            borderRadius: "12px",
+          }}
+        />
+      )}
+
       <div
-        className="absolute -inset-px rounded-xl transition-all duration-500"
+        className="relative px-6 py-4 rounded-xl overflow-hidden flex flex-col gap-3"
         style={{
-          background:
-            "linear-gradient(135deg, rgba(52,211,153,0.5), rgba(16,185,129,0.3), rgba(52,211,153,0.2))",
-          opacity: hovered ? 1 : 0,
-          borderRadius: "12px",
-        }}
-      />
-      <div
-        className="relative px-5 py-3.5 rounded-xl overflow-hidden flex items-center gap-3"
-        style={{
-          background:
-            "linear-gradient(135deg, rgba(5,20,40,0.9) 0%, rgba(8,25,50,0.95) 100%)",
-          border: "1px solid rgba(52,211,153,0.3)",
-          boxShadow: hovered
-            ? "0 0 30px rgba(52,211,153,0.2), 0 0 60px rgba(52,211,153,0.08)"
-            : "none",
+          background: `linear-gradient(135deg, rgba(5,20,40,${bgOpacity}) 0%, rgba(8,25,50,${bgOpacity}) 100%)`,
+          border: `1.5px solid ${borderColor}`,
+          boxShadow:
+            hovered && isEligible
+              ? `0 0 30px ${glowColor}, 0 0 60px rgba(52,211,153,0.1)`
+              : "none",
         }}
       >
-        {/* BG pattern */}
-        <div
-          className="absolute inset-0 opacity-10 pointer-events-none"
-          style={{
-            backgroundImage:
-              "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(52,211,153,0.1) 10px, rgba(52,211,153,0.1) 11px)",
-          }}
-        />
+        {/* Pattern overlay */}
+        {isEligible && (
+          <div
+            className="absolute inset-0 opacity-5 pointer-events-none"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(52,211,153,0.1) 10px, rgba(52,211,153,0.1) 11px)",
+            }}
+          />
+        )}
 
-        {/* Green dot indicator */}
-        <div
-          className="relative flex-shrink-0 w-2.5 h-2.5 rounded-full"
-          style={{
-            background: "#34d399",
-            boxShadow: "0 0 8px rgba(52,211,153,0.7)",
-          }}
-        />
+        {/* Header: Name and Status */}
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 flex-1">
+            <div
+              className="flex-shrink-0 w-3 h-3 rounded-full mt-1"
+              style={{
+                background: isEligible ? "#34d399" : "#64748b",
+                boxShadow: isEligible ? "0 0 8px rgba(52,211,153,0.7)" : "none",
+              }}
+            />
+            <div>
+              <span
+                className="text-base font-bold"
+                style={{
+                  fontFamily: "'Rajdhani', sans-serif",
+                  color: textColor,
+                }}
+              >
+                {result?.archetypeLabel ?? archetypeKey}
+              </span>
+              {isEligible && (
+                <div
+                  className="text-xs font-bold uppercase tracking-wider mt-1"
+                  style={{ color: "#34d399" }}
+                >
+                  🔓 Mở Khóa
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
-        {/* Label */}
-        <span
-          className="relative text-sm font-bold leading-tight"
-          style={{
-            fontFamily: "'Rajdhani', sans-serif",
-            color: hovered ? "#fff" : "#e2e8f0",
-            transition: "color 0.2s",
-          }}
-        >
-          {result.archetypeLabel ?? archetypeKey}
-        </span>
+        {/* Conditions details */}
+        {result && (
+          <div className="relative space-y-2 text-sm">
+            {result.checks?.map((check, idx) => (
+              <div
+                key={idx}
+                className="text-xs"
+                style={{ color: textColor, lineHeight: 1.5 }}
+              >
+                <div style={{ color: check.pass ? "#34d399" : "#f87171" }}>
+                  {check.pass ? "✓" : "✗"} {check.message}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// STAT CARD COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
 
 function StatCard({ label, value, color, glow }) {
   const [hovered, setHovered] = useState(false);
@@ -84,31 +288,30 @@ function StatCard({ label, value, color, glow }) {
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="relative rounded-2xl p-6 text-center transition-all duration-300"
+      className="relative rounded-2xl p-8 text-center transition-all duration-300"
       style={{
         background:
           "linear-gradient(135deg, rgba(5,15,30,0.95) 0%, rgba(8,20,40,0.9) 100%)",
         border: `1px solid ${hovered ? color + "60" : color + "25"}`,
         boxShadow: hovered ? `0 0 30px ${glow}30, 0 0 60px ${glow}10` : "none",
-        transform: hovered ? "translateY(-3px)" : "none",
+        transform: hovered ? "translateY(-4px)" : "none",
       }}
     >
       <div
-        className="text-4xl font-black mb-1.5"
+        className="text-5xl font-black mb-2"
         style={{
           fontFamily: "'Rajdhani', sans-serif",
           background: `linear-gradient(135deg, #fff 0%, ${color} 100%)`,
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
-          textShadow: "none",
           letterSpacing: "-0.02em",
         }}
       >
         {value}
       </div>
       <div
-        className="text-xs uppercase tracking-widest font-bold"
-        style={{ color: "rgba(148,163,184,0.6)" }}
+        className="text-sm uppercase tracking-widest font-bold"
+        style={{ color: "rgba(148,163,184,0.7)" }}
       >
         {label}
       </div>
@@ -116,17 +319,32 @@ function StatCard({ label, value, color, glow }) {
   );
 }
 
-// ─── Main Page Component ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN PAGE COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
 
 export default function HomePage() {
+  // ─── STATE ───────────────────────────────────────────────────────────────
+  const [step, setStep] = useState(1); // 1 = Team Stats, 2 = Deck Input, 3 = Results
+
+  // Team Stats
+  const [teamWins, setTeamWins] = useState("");
+  const [teamLosses, setTeamLosses] = useState("");
+  const [unlockedArchetypes, setUnlockedArchetypes] = useState("");
+
+  // Deck Input
   const [deckString, setDeckString] = useState("");
+
+  // Results
   const [loading, setLoading] = useState(false);
   const [dbLoading, setDbLoading] = useState(true);
   const [results, setResults] = useState(null);
+  const [deckStats, setDeckStats] = useState(null);
   const [error, setError] = useState("");
-  const [validateBtnHover, setValidateBtnHover] = useState(false);
+
   const textareaRef = useRef(null);
 
+  // ─── EFFECTS ─────────────────────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/cards")
       .then((r) => r.json())
@@ -134,9 +352,19 @@ export default function HomePage() {
       .finally(() => setDbLoading(false));
   }, []);
 
+  // ─── HANDLERS ────────────────────────────────────────────────────────────
+  const handleProceedToDecks = () => {
+    if (!teamWins || !teamLosses || !unlockedArchetypes) {
+      setError(i18n.requiredFields);
+      return;
+    }
+    setError("");
+    setStep(2);
+  };
+
   const handleValidate = useCallback(async () => {
     if (!deckString.trim()) {
-      setError("Please paste your deck string (YDKE or .ydk format).");
+      setError(i18n.pasteDeckToValidate);
       return;
     }
     setLoading(true);
@@ -154,12 +382,14 @@ export default function HomePage() {
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        setError(data.error ?? `Error ${res.status}`);
+        setError(data.error ?? `${i18n.error} ${res.status}`);
       } else {
         setResults(data);
+        setDeckStats(parseDeckStats(data.deck));
+        setStep(3);
       }
     } catch (err) {
-      setError(`Connection error: ${err.message}`);
+      setError(`${i18n.connectionError}: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -172,6 +402,18 @@ export default function HomePage() {
     textareaRef.current?.focus();
   };
 
+  const handleReset = () => {
+    setStep(1);
+    setTeamWins("");
+    setTeamLosses("");
+    setUnlockedArchetypes("");
+    setDeckString("");
+    setResults(null);
+    setDeckStats(null);
+    setError("");
+  };
+
+  // ─── COMPUTED VALUES ─────────────────────────────────────────────────────
   const passedArchetypes = results?.results
     ? Object.entries(results.results)
         .filter(([, r]) => r.overallPass)
@@ -184,15 +426,20 @@ export default function HomePage() {
         .map(([key, r]) => ({ key, result: r }))
     : [];
 
+  const additionalWins = calculateArchetypeScaling(
+    parseInt(unlockedArchetypes) || 0,
+  );
+
+  // ─── RENDER ──────────────────────────────────────────────────────────────
   return (
     <>
       <div
         className="min-h-screen relative"
         style={{ background: "#030810", color: "#e2e8f0" }}
       >
-        {/* ══════════════════════════════════════════════════
+        {/* ═══════════════════════════════════════════════════════════════
             BACKGROUND LAYER
-        ══════════════════════════════════════════════════ */}
+        ═══════════════════════════════════════════════════════════════ */}
         <div
           className="fixed inset-0 pointer-events-none overflow-hidden"
           style={{ zIndex: 0 }}
@@ -201,16 +448,13 @@ export default function HomePage() {
           <div
             className="absolute inset-0"
             style={{
-              backgroundImage: "asset('assets/bg.jpg')",
+              backgroundImage: "url('assets/bg.jpg')",
               backgroundSize: "cover",
               backgroundPosition: "center",
               backgroundRepeat: "no-repeat",
-              opacity: 0.18,
+              opacity: 0.08,
             }}
           />
-
-          {/* Duel grid floor */}
-          <div className="duel-grid absolute inset-0" />
 
           {/* Primary atmosphere orbs */}
           <div
@@ -223,7 +467,7 @@ export default function HomePage() {
               borderRadius: "50%",
               background:
                 "radial-gradient(circle, rgba(234,179,8,0.12) 0%, rgba(234,179,8,0.04) 40%, transparent 70%)",
-              animation: "pulse-glow 6s ease-in-out infinite",
+              animation: "pulse 6s ease-in-out infinite",
             }}
           />
           <div
@@ -236,13 +480,13 @@ export default function HomePage() {
               borderRadius: "50%",
               background:
                 "radial-gradient(circle, rgba(99,102,241,0.1) 0%, rgba(99,102,241,0.03) 40%, transparent 70%)",
-              animation: "pulse-glow 8s ease-in-out infinite 2s",
+              animation: "pulse 8s ease-in-out infinite 2s",
             }}
           />
 
           {/* Spinning holographic ring */}
           <div
-            className="animate-spin-slow absolute"
+            className="animate-spin absolute"
             style={{
               top: "50%",
               left: "50%",
@@ -252,19 +496,7 @@ export default function HomePage() {
               border: "1px solid rgba(250,204,21,0.04)",
               borderRadius: "50%",
               borderTopColor: "rgba(250,204,21,0.12)",
-            }}
-          />
-          <div
-            className="animate-spin-slow-rev absolute"
-            style={{
-              top: "50%",
-              left: "50%",
-              width: "700px",
-              height: "700px",
-              transform: "translate(-50%, -50%)",
-              border: "1px solid rgba(99,102,241,0.04)",
-              borderRadius: "50%",
-              borderBottomColor: "rgba(99,102,241,0.1)",
+              animationDuration: "60s",
             }}
           />
 
@@ -274,16 +506,6 @@ export default function HomePage() {
             style={{
               backgroundImage:
                 "repeating-linear-gradient(45deg, rgba(250,204,21,0.5) 0px, transparent 1px, transparent 80px, rgba(250,204,21,0.5) 81px)",
-            }}
-          />
-
-          {/* Scanline effect */}
-          <div
-            className="absolute inset-x-0 h-48 opacity-[0.015]"
-            style={{
-              background:
-                "linear-gradient(to bottom, transparent, rgba(250,204,21,0.5), transparent)",
-              animation: "scanline 10s linear infinite",
             }}
           />
 
@@ -297,9 +519,9 @@ export default function HomePage() {
           />
         </div>
 
-        {/* ══════════════════════════════════════════════════
+        {/* ═══════════════════════════════════════════════════════════════
             HEADER
-        ══════════════════════════════════════════════════ */}
+        ═══════════════════════════════════════════════════════════════ */}
         <header
           className="relative"
           style={{
@@ -314,18 +536,18 @@ export default function HomePage() {
               backdropFilter: "blur(20px)",
             }}
           >
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               {/* Top bar */}
               <div
-                className="flex items-center justify-between py-3 border-b"
+                className="flex items-center justify-between py-4 border-b text-sm"
                 style={{ borderColor: "rgba(255,255,255,0.04)" }}
               >
                 <div
-                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest"
+                  className="flex items-center gap-2 font-bold uppercase tracking-widest"
                   style={{ color: "rgba(250,204,21,0.7)" }}
                 >
-                  <span style={{ color: "#facc15" }}>◆</span> Official
-                  Tournament System
+                  <span style={{ color: "#facc15" }}>◆</span>{" "}
+                  {i18n.officialTournament}
                 </div>
                 <div className="flex items-center gap-2">
                   <div
@@ -339,55 +561,59 @@ export default function HomePage() {
                     }}
                   />
                   <span
-                    className="text-xs font-semibold uppercase tracking-wider"
+                    className="font-semibold uppercase tracking-wider text-xs"
                     style={{ color: dbLoading ? "#fbbf24" : "#6ee7b7" }}
                   >
-                    {dbLoading ? "Loading DB..." : "DB Online"}
+                    {dbLoading ? i18n.loadingDB : i18n.dbOnline}
                   </span>
                 </div>
               </div>
 
               {/* Main hero */}
-              <div className="py-12 sm:py-16">
-                {/* Logo */}
-                <div className="mb-6">
+              <div className="py-14 sm:py-20">
+                <div className="mb-8">
                   <img
                     src="assets/logo.png"
                     alt="XYGO Tournament Logo"
                     style={{
-                      height: "80px",
+                      height: "100px",
                       width: "auto",
                       objectFit: "contain",
                     }}
                   />
                 </div>
 
+                <h1
+                  className="text-4xl sm:text-5xl font-black mb-4"
+                  style={{ color: "#facc15" }}
+                >
+                  {i18n.validatorTitle}
+                </h1>
+
                 <p
                   style={{
-                    maxWidth: "560px",
-                    fontSize: "15px",
-                    lineHeight: 1.7,
-                    color: "rgba(148,163,184,0.85)",
-                    marginBottom: "24px",
+                    maxWidth: "700px",
+                    fontSize: "18px",
+                    lineHeight: 1.8,
+                    color: "rgba(148,163,184,0.9)",
+                    marginBottom: "32px",
                   }}
                 >
-                  Validate your tournament deck against archetype-specific
-                  conditions. Paste your YDKE link or YDK file content below —
-                  the system will instantly analyze every registered archetype.
+                  {i18n.validatorDesc}
                 </p>
 
                 {/* Stats strip */}
-                <div className="flex flex-wrap items-center gap-6">
+                <div className="flex flex-wrap items-center gap-8">
                   {[
                     { label: "Archetypes", value: "44" },
-                    { label: "Conditions Checked", value: "Auto" },
-                    { label: "DB Updated", value: "24h" },
+                    { label: "Đã Kiểm Tra", value: "Tự Động" },
+                    { label: "CSDL Cập Nhật", value: "24h" },
                   ].map((s) => (
                     <div key={s.label} className="flex items-center gap-2">
                       <span
                         style={{
                           fontFamily: "'Rajdhani', sans-serif",
-                          fontSize: "20px",
+                          fontSize: "28px",
                           fontWeight: 900,
                           color: "#facc15",
                         }}
@@ -396,10 +622,11 @@ export default function HomePage() {
                       </span>
                       <span
                         style={{
-                          fontSize: "12px",
-                          color: "rgba(148,163,184,0.5)",
+                          fontSize: "13px",
+                          color: "rgba(148,163,184,0.6)",
                           letterSpacing: "0.05em",
                           textTransform: "uppercase",
+                          fontWeight: 600,
                         }}
                       >
                         {s.label}
@@ -412,975 +639,752 @@ export default function HomePage() {
           </div>
         </header>
 
-        {/* ══════════════════════════════════════════════════
+        {/* ═══════════════════════════════════════════════════════════════
             MAIN CONTENT
-        ══════════════════════════════════════════════════ */}
+        ═══════════════════════════════════════════════════════════════ */}
         <main
-          className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
+          className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16"
           style={{ zIndex: 10 }}
         >
-          <div className="grid lg:grid-cols-5 gap-8 items-start">
-            {/* ─── LEFT COLUMN: Input Panel (3/5 width) ─── */}
-            <div className="lg:col-span-3 animate-slide-up">
+          {/* ─────────────────────────────────────────────────────────────
+              STEP 1: TEAM STATS INPUT
+          ───────────────────────────────────────────────────────────────── */}
+          {step === 1 && (
+            <div className="animate-fade-in">
               <div
-                className="card-slot rounded-2xl overflow-hidden"
+                className="rounded-3xl overflow-hidden max-w-2xl mx-auto"
                 style={{
                   background:
                     "linear-gradient(135deg, rgba(5,15,35,0.95) 0%, rgba(8,22,50,0.9) 100%)",
-                  border: "1px solid rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.08)",
                   boxShadow:
                     "0 0 0 1px rgba(0,0,0,0.5), 0 25px 60px rgba(0,0,0,0.4)",
                 }}
               >
                 {/* Panel header */}
                 <div
-                  className="px-7 py-5 flex items-center gap-3"
+                  className="px-8 py-8 flex items-center gap-3 border-b"
                   style={{
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    borderColor: "rgba(255,255,255,0.05)",
                     background: "rgba(255,255,255,0.02)",
                   }}
                 >
                   <div>
-                    <div
-                      className="section-title text-sm"
+                    <h2
+                      className="text-3xl font-black mb-1"
+                      style={{ color: "#facc15" }}
+                    >
+                      {i18n.step} 1: {i18n.stepTeamInfo}
+                    </h2>
+                    <p
+                      style={{
+                        fontSize: "16px",
+                        color: "rgba(148,163,184,0.6)",
+                      }}
+                    >
+                      Nhập thông tin đội ngũ của bạn để bắt đầu kiểm tra
+                    </p>
+                  </div>
+                </div>
+
+                {/* Form inputs */}
+                <div className="p-8 space-y-8">
+                  {/* Wins Input */}
+                  <div>
+                    <label
+                      className="block text-lg font-bold mb-3"
                       style={{ color: "rgba(255,255,255,0.9)" }}
                     >
-                      Deck Input
-                    </div>
-                    <div
+                      {i18n.teamWins}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={teamWins}
+                      onChange={(e) => setTeamWins(e.target.value)}
+                      placeholder="VD: 10"
+                      className="w-full px-6 py-4 rounded-xl text-lg font-semibold"
                       style={{
-                        fontSize: "11px",
-                        color: "rgba(148,163,184,0.5)",
-                        marginTop: "1px",
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        color: "#e2e8f0",
                       }}
-                    >
-                      YDKE or YDK format
-                    </div>
+                    />
                   </div>
-                  {deckString.trim() && (
-                    <div
-                      className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-                      style={{
-                        background: "rgba(250,204,21,0.1)",
-                        border: "1px solid rgba(250,204,21,0.2)",
-                      }}
-                    >
-                      <div
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: "#facc15" }}
-                      />
-                      <span
-                        style={{
-                          fontSize: "10px",
-                          color: "#facc15",
-                          fontWeight: 700,
-                          letterSpacing: "0.1em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Ready
-                      </span>
-                    </div>
-                  )}
-                </div>
 
-                {/* Textarea */}
-                <div className="p-7">
-                  <textarea
-                    ref={textareaRef}
-                    className="ygo-textarea"
-                    value={deckString}
-                    onChange={(e) => {
-                      setDeckString(e.target.value);
-                      setResults(null);
-                      setError("");
-                    }}
-                    placeholder={`Paste YDKE link:\nydke://abc123xyz789...\n\nOr YDK file content:\n#main\n12345678\n87654321\n#extra\n11111111\n!side\n22222222`}
-                    rows={9}
-                    spellCheck={false}
-                  />
-
-                  {/* Error */}
-                  {error && (
-                    <div
-                      className="mt-4 flex items-start gap-3 p-4 rounded-xl animate-fade-in"
-                      style={{
-                        background: "rgba(239,68,68,0.08)",
-                        border: "1px solid rgba(239,68,68,0.25)",
-                      }}
+                  {/* Losses Input */}
+                  <div>
+                    <label
+                      className="block text-lg font-bold mb-3"
+                      style={{ color: "rgba(255,255,255,0.9)" }}
                     >
+                      {i18n.teamLosses}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={teamLosses}
+                      onChange={(e) => setTeamLosses(e.target.value)}
+                      placeholder="VD: 5"
+                      className="w-full px-6 py-4 rounded-xl text-lg font-semibold"
+                      style={{
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        color: "#e2e8f0",
+                      }}
+                    />
+                  </div>
+
+                  {/* Unlocked Archetypes Input */}
+                  <div>
+                    <label
+                      className="block text-lg font-bold mb-3"
+                      style={{ color: "rgba(255,255,255,0.9)" }}
+                    >
+                      {i18n.unlockedArchetypes}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="44"
+                      value={unlockedArchetypes}
+                      onChange={(e) => setUnlockedArchetypes(e.target.value)}
+                      placeholder="VD: 8"
+                      className="w-full px-6 py-4 rounded-xl text-lg font-semibold"
+                      style={{
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        color: "#e2e8f0",
+                      }}
+                    />
+                    {unlockedArchetypes && parseInt(unlockedArchetypes) > 5 && (
                       <p
-                        style={{
-                          fontSize: "13px",
-                          color: "#fca5a5",
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {error}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Action buttons */}
-                  <div className="flex gap-3 mt-6">
-                    <button
-                      onClick={handleValidate}
-                      disabled={loading || !deckString.trim()}
-                      onMouseEnter={() => setValidateBtnHover(true)}
-                      onMouseLeave={() => setValidateBtnHover(false)}
-                      className="validate-btn flex-1 flex items-center justify-center gap-2.5"
-                      style={
-                        loading || !deckString.trim()
-                          ? {
-                              background: "rgba(255,255,255,0.04)",
-                              color: "rgba(100,116,139,0.6)",
-                              cursor: "not-allowed",
-                              border: "1px solid rgba(255,255,255,0.06)",
-                            }
-                          : {
-                              background: validateBtnHover
-                                ? "linear-gradient(135deg, #fde047 0%, #f59e0b 50%, #d97706 100%)"
-                                : "linear-gradient(135deg, #facc15 0%, #f59e0b 50%, #ea580c 100%)",
-                              color: "#0a0a0a",
-                              boxShadow: validateBtnHover
-                                ? "0 0 30px rgba(250,204,21,0.5), 0 0 60px rgba(250,204,21,0.2), 0 8px 25px rgba(0,0,0,0.4)"
-                                : "0 0 20px rgba(250,204,21,0.3), 0 4px 15px rgba(0,0,0,0.3)",
-                              transform: validateBtnHover
-                                ? "translateY(-2px)"
-                                : "none",
-                              border: "none",
-                            }
-                      }
-                    >
-                      {loading ? (
-                        <span>Analyzing Deck...</span>
-                      ) : !deckString.trim() ? (
-                        <span>Paste Deck to Validate</span>
-                      ) : (
-                        <span>Validate Deck</span>
-                      )}
-                    </button>
-
-                    {deckString && (
-                      <button
-                        onClick={handleClear}
-                        className="validate-btn flex items-center gap-2"
-                        style={{
-                          background: "rgba(255,255,255,0.04)",
-                          color: "rgba(148,163,184,0.8)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          padding: "14px 20px",
-                          flexShrink: 0,
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background =
-                            "rgba(239,68,68,0.1)";
-                          e.currentTarget.style.borderColor =
-                            "rgba(239,68,68,0.25)";
-                          e.currentTarget.style.color = "#fca5a5";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background =
-                            "rgba(255,255,255,0.04)";
-                          e.currentTarget.style.borderColor =
-                            "rgba(255,255,255,0.08)";
-                          e.currentTarget.style.color = "rgba(148,163,184,0.8)";
-                        }}
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Format guide */}
-              <div
-                className="mt-4 p-4 rounded-xl"
-                style={{
-                  background: "rgba(250,204,21,0.03)",
-                  border: "1px solid rgba(250,204,21,0.1)",
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: "12px",
-                    color: "rgba(148,163,184,0.7)",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  Export your deck from{" "}
-                  <strong style={{ color: "rgba(250,204,21,0.8)" }}>
-                    YGO Omega
-                  </strong>
-                  ,{" "}
-                  <strong style={{ color: "rgba(250,204,21,0.8)" }}>
-                    YGO ProDeck
-                  </strong>
-                  , or any compatible app as a YDKE link or .ydk file. The
-                  system automatically detects the format.
-                </p>
-              </div>
-            </div>
-
-            {/* ─── RIGHT COLUMN: Info Panel (2/5 width) ─── */}
-            <div
-              className="lg:col-span-2 space-y-5 animate-slide-up"
-              style={{ animationDelay: "0.1s" }}
-            >
-              {/* Active archetypes */}
-              <div
-                className="rounded-2xl overflow-hidden"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgba(5,15,35,0.95) 0%, rgba(8,22,50,0.9) 100%)",
-                  border: "1px solid rgba(255,255,255,0.07)",
-                }}
-              >
-                <div
-                  className="px-6 py-4 flex items-center gap-2"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-                >
-                  <span
-                    className="section-title text-sm"
-                    style={{ color: "rgba(255,255,255,0.85)" }}
-                  >
-                    Active Archetypes
-                  </span>
-                  <span
-                    className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full"
-                    style={{
-                      background: "rgba(250,204,21,0.12)",
-                      border: "1px solid rgba(250,204,21,0.25)",
-                      color: "#facc15",
-                    }}
-                  >
-                    44
-                  </span>
-                </div>
-                <div
-                  className="p-4 space-y-4 overflow-y-auto"
-                  style={{ maxHeight: "520px" }}
-                >
-                  {[
-                    {
-                      group: "10 Wins",
-                      color: "#34d399",
-                      archetypes: [
-                        {
-                          key: "MALICE",
-                          label: "M∀LICE",
-                          desc: "≥25 DARK Monster + ≥45 Main Deck",
-                        },
-                        {
-                          key: "RYZEAL",
-                          label: "Ryzeal",
-                          desc: "≥10 LIGHT/Thunder + ≥7 Xyz Extra",
-                        },
-                        {
-                          key: "ARTMAGE",
-                          label: "Artmage",
-                          desc: "≥3 Attr (LIGHT+DARK) + ≥10 Pendulum + ≥10 Spell",
-                        },
-                        {
-                          key: "MARINCESS",
-                          label: "Marincess",
-                          desc: "≥10 WATER Monster + ≥5 Water Link Extra",
-                        },
-                        {
-                          key: "MIKANKO",
-                          label: "Mikanko",
-                          desc: "≥6 Monster + ≥3 Equip Spell",
-                        },
-                        {
-                          key: "TRAPTRIX",
-                          label: "Traptrix",
-                          desc: "≥10 Trap + ≥10 Insect/Plant Monster",
-                        },
-                      ],
-                    },
-                    {
-                      group: "20 Wins",
-                      color: "#facc15",
-                      archetypes: [
-                        {
-                          key: "BLUE_EYES",
-                          label: "Blue-Eyes",
-                          desc: "≥6 Level 8 Monster",
-                        },
-                        {
-                          key: "CHIMERA",
-                          label: "Chimera (Illusion)",
-                          desc: "≥2 Attribute + ≥2 Type (Illusion/Beast/Fiend)",
-                        },
-                        {
-                          key: "DDD",
-                          label: "D/D/D",
-                          desc: "Extra Deck: ≥1 Link + Fusion + Synchro + Xyz",
-                        },
-                        {
-                          key: "DARK_MAGICIAN",
-                          label: "Dark Magician",
-                          desc: "≥5 Spellcaster + ≥6 Spell + Lv7/6/1",
-                        },
-                        {
-                          key: "FLOOWANDEREEZE",
-                          label: "Floowandereeze",
-                          desc: "≥15 Winged Beast Monster",
-                        },
-                        {
-                          key: "HERO",
-                          label: "HERO",
-                          desc: "≥3 Fusion Monster w/ 3 diff Attributes",
-                        },
-                        {
-                          key: "LIVE_TWIN",
-                          label: "Live-Twin / Evil-Twin",
-                          desc: "≥10 Cyberse/Fiend + ≥2 Link-2 Extra",
-                        },
-                        {
-                          key: "MANNADIUM",
-                          label: "Mannadium",
-                          desc: "≥4 Archetypes + ≥8 Tuner Monster",
-                        },
-                        {
-                          key: "MATHMECH",
-                          label: "Mathmech",
-                          desc: "≥10 Cyberse + ≥1 Xyz + ≥1 Link Extra",
-                        },
-                        {
-                          key: "RITUAL_BEAST",
-                          label: "Ritual Beast",
-                          desc: "≥8 WIND Monster + ≥4 Fusion Extra",
-                        },
-                        {
-                          key: "SPYRAL",
-                          label: "SPYRAL",
-                          desc: "≥3 Hand/Deck viewing cards",
-                        },
-                        {
-                          key: "SWORDSOUL",
-                          label: "Swordsoul",
-                          desc: "≥10 Wyrm Monster + ≥7 Synchro Extra",
-                        },
-                        {
-                          key: "UNCHAINED",
-                          label: "Unchained",
-                          desc: "≥10 Fiend Monster + ≥5 Trap",
-                        },
-                      ],
-                    },
-                    {
-                      group: "30 Wins",
-                      color: "#f97316",
-                      archetypes: [
-                        {
-                          key: "BYSTIAL",
-                          label: "Bystial",
-                          desc: "≥3 Level 6 Dragon (LIGHT/DARK)",
-                        },
-                        {
-                          key: "ELFNOTE",
-                          label: "Elfnote",
-                          desc: "≥10 Fairy/Spellcaster + ≥10 Spell",
-                        },
-                        {
-                          key: "FIRE_KING",
-                          label: "Fire King",
-                          desc: "≥3 Archetypes + ≥10 FIRE Monster",
-                        },
-                        {
-                          key: "HORUS",
-                          label: "Horus",
-                          desc: "≥3 Archetypes + ≥4 Level 8 Monster (diff Attr)",
-                        },
-                        {
-                          key: "K9",
-                          label: "K9",
-                          desc: "≥10 EARTH/LIGHT + ≥5 Beast/Beast-Warrior",
-                        },
-                        {
-                          key: "SKY_STRIKER",
-                          label: "Sky Striker",
-                          desc: "≥20 Spell + ≤10 Monster",
-                        },
-                        {
-                          key: "SNAKE_EYES",
-                          label: "Snake-Eyes",
-                          desc: "≥10 FIRE Monster",
-                        },
-                        {
-                          key: "VAALMONICA",
-                          label: "Vaalmonica",
-                          desc: "≥10 Spell Card",
-                        },
-                        {
-                          key: "VANQUISH_SOUL",
-                          label: "Vanquish Soul",
-                          desc: "≥4 Attr (EARTH/FIRE/DARK req.) ≥3 each",
-                        },
-                      ],
-                    },
-                    {
-                      group: "40 Wins",
-                      color: "#e879f9",
-                      archetypes: [
-                        {
-                          key: "CENTUR_ION",
-                          label: "Centur-Ion",
-                          desc: "≥7 Synchro Extra Deck",
-                        },
-                        {
-                          key: "FIENDSMITH",
-                          label: "Fiendsmith",
-                          desc: "≥10 Fiend + ≥5 Special Summon cards",
-                        },
-                        {
-                          key: "KASHTIRA",
-                          label: "Kashtira",
-                          desc: "≥10 Psychic Monster + ≥5 Xyz Extra",
-                        },
-                        {
-                          key: "LABRYNTH",
-                          label: "Labrynth/Eldlich",
-                          desc: "≥20 Trap Card",
-                        },
-                        {
-                          key: "PURRELY",
-                          label: "Purrely",
-                          desc: "≥10 Quick-Play Spell",
-                        },
-                        {
-                          key: "RADIANT_TYPHOON",
-                          label: "Radiant Typhoon",
-                          desc: "≥3 Archetypes + ≥10 Quick-Play Spell",
-                        },
-                        {
-                          key: "RESCUE_ACE",
-                          label: "Rescue-ACE",
-                          desc: "≥10 Quick-Play + ≥10 Normal Trap + ≥5 Destroy",
-                        },
-                        {
-                          key: "VOICELESS_VOICE",
-                          label: "Voiceless Voice",
-                          desc: "≥10 LIGHT Monster + ≥5 Ritual Monster/Spell",
-                        },
-                      ],
-                    },
-                    {
-                      group: "50 Wins",
-                      color: "#60a5fa",
-                      archetypes: [
-                        {
-                          key: "BRANDED",
-                          label: "Branded",
-                          desc: "≥10 Fusion Material cards + ≥5 Fusion Extra",
-                        },
-                        {
-                          key: "DRACOTAIL",
-                          label: "Dracotail",
-                          desc: "≥15 Dragon Monster + ≥5 Special Summon",
-                        },
-                        {
-                          key: "KEWL_TUNE",
-                          label: "Kewl Tune",
-                          desc: "≥10 Tuner Monster + ≥7 Synchro Extra",
-                        },
-                        {
-                          key: "MITSURUGI",
-                          label: "Mitsurugi",
-                          desc: "≥10 Reptile Monster",
-                        },
-                        {
-                          key: "TENPAI_DRAGON",
-                          label: "Tenpai Dragon",
-                          desc: "≥12 Dragon Monster",
-                        },
-                        {
-                          key: "WHITE_FOREST",
-                          label: "White Forest",
-                          desc: "≥15 Spell + ≥5 Synchro Extra",
-                        },
-                      ],
-                    },
-                    {
-                      group: "20 Losses",
-                      color: "#94a3b8",
-                      archetypes: [
-                        {
-                          key: "DRAGONMAID",
-                          label: "Dragonmaid",
-                          desc: "≥8 Dragon Monster + ≥3 Fusion Extra",
-                        },
-                        {
-                          key: "ANTI_SPELL",
-                          label: "Anti-Spell Fragrance",
-                          desc: "≥10 Continuous Spell/Trap",
-                        },
-                        {
-                          key: "YUMMY",
-                          label: "Yummy",
-                          desc: "≥10 Ritual Monster + ≥5 Ritual Spell",
-                        },
-                      ],
-                    },
-                    {
-                      group: "30 Losses",
-                      color: "#fb7185",
-                      archetypes: [
-                        {
-                          key: "RUNICK",
-                          label: "Runick",
-                          desc: "≥10 Spell + ≥10 Trap",
-                        },
-                        {
-                          key: "YUBEL",
-                          label: "Yubel",
-                          desc: "≥10 Fiend Monster",
-                        },
-                      ],
-                    },
-                    {
-                      group: "40 Losses",
-                      color: "#a78bfa",
-                      archetypes: [
-                        {
-                          key: "ENNEACRAFT",
-                          label: "Enneacraft",
-                          desc: "≥12 Spell Card",
-                        },
-                        {
-                          key: "DINOSAUR",
-                          label: "Dinosaur Monster Type",
-                          desc: "≥10 unique card names",
-                        },
-                      ],
-                    },
-                    {
-                      group: "100 Losses",
-                      color: "#f87171",
-                      archetypes: [
-                        {
-                          key: "TEARLAMENTS",
-                          label: "Tearlaments (Full Power)",
-                          desc: "≥20 WATER/DARK/Aqua Monster",
-                        },
-                        {
-                          key: "ZOODIAC",
-                          label: "Zoodiac (Full Power)",
-                          desc: "≥5 Xyz Extra + ≥5 Beast Monster",
-                        },
-                      ],
-                    },
-                  ].map((section) => (
-                    <div key={section.group}>
-                      {/* Group label */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <div
-                          className="h-px flex-1"
-                          style={{ background: `${section.color}30` }}
-                        />
-                        <span
-                          className="text-xs font-black uppercase tracking-widest px-2 py-0.5 rounded"
-                          style={{
-                            color: section.color,
-                            background: `${section.color}15`,
-                            border: `1px solid ${section.color}30`,
-                            fontFamily: "'Space Mono', monospace",
-                          }}
-                        >
-                          {section.group}
-                        </span>
-                        <div
-                          className="h-px flex-1"
-                          style={{ background: `${section.color}30` }}
-                        />
-                      </div>
-                      {/* Archetype rows */}
-                      <div className="space-y-1.5">
-                        {section.archetypes.map((arch) => (
-                          <div
-                            key={arch.key}
-                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
-                            style={{
-                              background: "rgba(255,255,255,0.02)",
-                              border: "1px solid rgba(255,255,255,0.04)",
-                            }}
-                          >
-                            <div
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{
-                                background: section.color,
-                                boxShadow: `0 0 6px ${section.color}`,
-                              }}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div
-                                style={{
-                                  fontSize: "12px",
-                                  fontWeight: 700,
-                                  color: "#e2e8f0",
-                                  fontFamily: "'Rajdhani', sans-serif",
-                                }}
-                              >
-                                {arch.label}
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: "10px",
-                                  color: "rgba(100,116,139,0.8)",
-                                  marginTop: "1px",
-                                  lineHeight: 1.3,
-                                }}
-                              >
-                                {arch.desc}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* How it works */}
-              <div
-                className="rounded-2xl overflow-hidden"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgba(5,15,35,0.95) 0%, rgba(8,22,50,0.9) 100%)",
-                  border: "1px solid rgba(255,255,255,0.07)",
-                }}
-              >
-                <div
-                  className="px-6 py-4 flex items-center gap-2"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-                >
-                  <span
-                    className="section-title text-sm"
-                    style={{ color: "rgba(255,255,255,0.85)" }}
-                  >
-                    How It Works
-                  </span>
-                </div>
-                <div className="p-5 space-y-4">
-                  {[
-                    {
-                      n: "01",
-                      title: "Paste Deck",
-                      desc: "YDKE link or .ydk file text",
-                    },
-                    {
-                      n: "02",
-                      title: "Auto-Detect",
-                      desc: "Format recognized instantly",
-                    },
-                    {
-                      n: "03",
-                      title: "DB Lookup",
-                      desc: "Cards resolved via YGOPRODeck",
-                    },
-                    {
-                      n: "04",
-                      title: "Rule Check",
-                      desc: "All archetypes analyzed",
-                    },
-                  ].map((step) => (
-                    <div key={step.n} className="flex items-start gap-3">
-                      <div
-                        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black"
+                        className="mt-3 p-4 rounded-lg text-sm font-semibold"
                         style={{
                           background: "rgba(250,204,21,0.1)",
-                          border: "1px solid rgba(250,204,21,0.2)",
                           color: "#facc15",
-                          fontFamily: "'Space Mono', monospace",
                         }}
                       >
-                        {step.n}
-                      </div>
-                      <div>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            fontWeight: 700,
-                            color: "#cbd5e1",
-                            marginBottom: "2px",
-                          }}
-                        >
-                          {step.title}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "11px",
-                            color: "rgba(100,116,139,0.8)",
-                          }}
-                        >
-                          {step.desc}
-                        </div>
-                      </div>
+                        ⚡ Điều chỉnh: +{additionalWins} Trận Thắng yêu cầu
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Error Message */}
+                  {error && (
+                    <div
+                      className="p-4 rounded-xl text-base font-semibold"
+                      style={{
+                        background: "rgba(239,68,68,0.1)",
+                        border: "1px solid rgba(239,68,68,0.3)",
+                        color: "#fca5a5",
+                      }}
+                    >
+                      {error}
                     </div>
-                  ))}
+                  )}
+
+                  {/* Proceed Button */}
+                  <button
+                    onClick={handleProceedToDecks}
+                    className="w-full px-8 py-4 rounded-xl text-lg font-bold uppercase tracking-wide transition-all duration-300 hover:shadow-lg"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, #facc15 0%, #f59e0b 50%, #ea580c 100%)",
+                      color: "#0a0a0a",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow =
+                        "0 0 30px rgba(250,204,21,0.5)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    {i18n.proceedToDecks} →
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* ══════════════════════════════════════════════════
-              RESULTS SECTION
-          ══════════════════════════════════════════════════ */}
-          {results && (
-            <div className="mt-12 animate-fade-in">
-              {/* Section header */}
-              <div className="flex items-center gap-4 mb-8">
-                <div
-                  className="flex-1 h-px"
-                  style={{
-                    background:
-                      "linear-gradient(90deg, rgba(250,204,21,0.3), transparent)",
-                  }}
-                />
-                <div
-                  className="flex items-center gap-2.5 px-4 py-2 rounded-full"
-                  style={{
-                    background: "rgba(250,204,21,0.08)",
-                    border: "1px solid rgba(250,204,21,0.2)",
-                  }}
-                >
-                  <span
-                    className="section-title text-sm"
+          {/* ─────────────────────────────────────────────────────────────
+              STEP 2: DECK INPUT
+          ───────────────────────────────────────────────────────────────── */}
+          {step === 2 && (
+            <div className="animate-fade-in">
+              <div className="grid lg:grid-cols-5 gap-8 items-start">
+                {/* Left column: Input */}
+                <div className="lg:col-span-3">
+                  <div
+                    className="rounded-3xl overflow-hidden"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, rgba(5,15,35,0.95) 0%, rgba(8,22,50,0.9) 100%)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      boxShadow:
+                        "0 0 0 1px rgba(0,0,0,0.5), 0 25px 60px rgba(0,0,0,0.4)",
+                    }}
+                  >
+                    {/* Header */}
+                    <div
+                      className="px-8 py-8 flex items-center justify-between border-b"
+                      style={{
+                        borderColor: "rgba(255,255,255,0.05)",
+                        background: "rgba(255,255,255,0.02)",
+                      }}
+                    >
+                      <div>
+                        <h2
+                          className="text-3xl font-black mb-1"
+                          style={{ color: "#facc15" }}
+                        >
+                          {i18n.step} 2: {i18n.stepDeckInput}
+                        </h2>
+                        <p
+                          style={{
+                            fontSize: "16px",
+                            color: "rgba(148,163,184,0.6)",
+                          }}
+                        >
+                          YDKE hoặc YDK format
+                        </p>
+                      </div>
+                      {deckString.trim() && (
+                        <div
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-full"
+                          style={{
+                            background: "rgba(250,204,21,0.1)",
+                            border: "1px solid rgba(250,204,21,0.3)",
+                          }}
+                        >
+                          <div
+                            className="w-2 h-2 rounded-full"
+                            style={{ background: "#facc15" }}
+                          />
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#facc15",
+                              fontWeight: 700,
+                              letterSpacing: "0.1em",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {i18n.ready}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Textarea */}
+                    <div className="p-8">
+                      <textarea
+                        ref={textareaRef}
+                        className="w-full px-6 py-4 rounded-xl text-base font-mono resize-none focus:outline-none"
+                        value={deckString}
+                        onChange={(e) => {
+                          setDeckString(e.target.value);
+                          setError("");
+                        }}
+                        placeholder={i18n.deckInputPlaceholder}
+                        rows={12}
+                        spellCheck={false}
+                        style={{
+                          background: "rgba(255,255,255,0.03)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          color: "#e2e8f0",
+                        }}
+                      />
+
+                      {/* Error */}
+                      {error && (
+                        <div
+                          className="mt-4 p-4 rounded-xl animate-fade-in text-base"
+                          style={{
+                            background: "rgba(239,68,68,0.1)",
+                            border: "1px solid rgba(239,68,68,0.3)",
+                            color: "#fca5a5",
+                          }}
+                        >
+                          {error}
+                        </div>
+                      )}
+
+                      {/* Buttons */}
+                      <div className="flex gap-3 mt-8">
+                        <button
+                          onClick={handleValidate}
+                          disabled={loading || !deckString.trim()}
+                          className="flex-1 px-8 py-4 rounded-xl text-lg font-bold uppercase tracking-wide transition-all duration-300"
+                          style={
+                            loading || !deckString.trim()
+                              ? {
+                                  background: "rgba(255,255,255,0.04)",
+                                  color: "rgba(100,116,139,0.6)",
+                                  cursor: "not-allowed",
+                                  border: "1px solid rgba(255,255,255,0.06)",
+                                }
+                              : {
+                                  background:
+                                    "linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%)",
+                                  color: "#050a14",
+                                  border: "none",
+                                  cursor: "pointer",
+                                }
+                          }
+                          onMouseEnter={(e) => {
+                            if (!loading && deckString.trim()) {
+                              e.currentTarget.style.transform =
+                                "translateY(-2px)";
+                              e.currentTarget.style.boxShadow =
+                                "0 0 30px rgba(52,211,153,0.5)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = "translateY(0)";
+                            e.currentTarget.style.boxShadow = "none";
+                          }}
+                        >
+                          {loading ? i18n.analyzingDeck : i18n.validateDeck}
+                        </button>
+
+                        <button
+                          onClick={() => setStep(1)}
+                          className="px-8 py-4 rounded-xl text-base font-bold uppercase tracking-wide transition-all"
+                          style={{
+                            background: "rgba(255,255,255,0.04)",
+                            color: "rgba(148,163,184,0.8)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            cursor: "pointer",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background =
+                              "rgba(99,102,241,0.1)";
+                            e.currentTarget.style.borderColor =
+                              "rgba(99,102,241,0.3)";
+                            e.currentTarget.style.color = "#a5b4fc";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background =
+                              "rgba(255,255,255,0.04)";
+                            e.currentTarget.style.borderColor =
+                              "rgba(255,255,255,0.08)";
+                            e.currentTarget.style.color =
+                              "rgba(148,163,184,0.8)";
+                          }}
+                        >
+                          {i18n.backToTeamStats}
+                        </button>
+
+                        {deckString && (
+                          <button
+                            onClick={handleClear}
+                            className="px-8 py-4 rounded-xl text-base font-bold uppercase tracking-wide transition-all"
+                            style={{
+                              background: "rgba(255,255,255,0.04)",
+                              color: "rgba(148,163,184,0.8)",
+                              border: "1px solid rgba(255,255,255,0.08)",
+                              cursor: "pointer",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background =
+                                "rgba(239,68,68,0.1)";
+                              e.currentTarget.style.borderColor =
+                                "rgba(239,68,68,0.3)";
+                              e.currentTarget.style.color = "#fca5a5";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background =
+                                "rgba(255,255,255,0.04)";
+                              e.currentTarget.style.borderColor =
+                                "rgba(255,255,255,0.08)";
+                              e.currentTarget.style.color =
+                                "rgba(148,163,184,0.8)";
+                            }}
+                          >
+                            {i18n.clear}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Format guide */}
+                  <div
+                    className="mt-6 p-6 rounded-xl text-sm"
+                    style={{
+                      background: "rgba(250,204,21,0.03)",
+                      border: "1px solid rgba(250,204,21,0.1)",
+                      fontSize: "16px",
+                      lineHeight: 1.6,
+                      color: "rgba(148,163,184,0.8)",
+                    }}
+                  >
+                    Xuất deck từ{" "}
+                    <strong style={{ color: "rgba(250,204,21,0.9)" }}>
+                      YGO Omega
+                    </strong>
+                    ,{" "}
+                    <strong style={{ color: "rgba(250,204,21,0.9)" }}>
+                      YGO ProDeck
+                    </strong>{" "}
+                    hoặc bất kỳ ứng dụng tương thích nào dưới dạng liên kết YDKE
+                    hoặc tệp .ydk.
+                  </div>
+                </div>
+
+                {/* Right column: Team Info Summary */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div
+                    className="rounded-2xl overflow-hidden p-8"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(99,102,241,0.05) 100%)",
+                      border: "1px solid rgba(99,102,241,0.2)",
+                    }}
+                  >
+                    <h3
+                      className="text-xl font-bold mb-6"
+                      style={{ color: "#a5b4fc" }}
+                    >
+                      📊 Thông Tin Đội Ngũ
+                    </h3>
+                    <div className="space-y-4">
+                      <div
+                        className="flex justify-between items-center pb-3 border-b"
+                        style={{ borderColor: "rgba(99,102,241,0.2)" }}
+                      >
+                        <span
+                          style={{
+                            color: "rgba(148,163,184,0.7)",
+                            fontSize: "16px",
+                          }}
+                        >
+                          Trận Thắng:
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: "'Rajdhani', sans-serif",
+                            fontSize: "24px",
+                            fontWeight: 900,
+                            color: "#a5b4fc",
+                          }}
+                        >
+                          {teamWins}
+                        </span>
+                      </div>
+                      <div
+                        className="flex justify-between items-center pb-3 border-b"
+                        style={{ borderColor: "rgba(99,102,241,0.2)" }}
+                      >
+                        <span
+                          style={{
+                            color: "rgba(148,163,184,0.7)",
+                            fontSize: "16px",
+                          }}
+                        >
+                          Trận Thua:
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: "'Rajdhani', sans-serif",
+                            fontSize: "24px",
+                            fontWeight: 900,
+                            color: "#a5b4fc",
+                          }}
+                        >
+                          {teamLosses}
+                        </span>
+                      </div>
+                      <div
+                        className="flex justify-between items-center pb-3 border-b"
+                        style={{ borderColor: "rgba(99,102,241,0.2)" }}
+                      >
+                        <span
+                          style={{
+                            color: "rgba(148,163,184,0.7)",
+                            fontSize: "16px",
+                          }}
+                        >
+                          Archetypes Mở Khóa:
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: "'Rajdhani', sans-serif",
+                            fontSize: "24px",
+                            fontWeight: 900,
+                            color: "#a5b4fc",
+                          }}
+                        >
+                          {unlockedArchetypes}
+                        </span>
+                      </div>
+                      {additionalWins > 0 && (
+                        <div
+                          className="p-4 rounded-lg border mt-4"
+                          style={{
+                            background: "rgba(250,204,21,0.08)",
+                            border: "1px solid rgba(250,204,21,0.2)",
+                            color: "#facc15",
+                            fontSize: "14px",
+                            fontWeight: 600,
+                          }}
+                        >
+                          ⚡ Điều chỉnh Scaling: +{additionalWins} Trận Thắng
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─────────────────────────────────────────────────────────────
+              STEP 3: RESULTS
+          ───────────────────────────────────────────────────────────────── */}
+          {step === 3 && results && (
+            <div className="animate-fade-in space-y-8">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2
+                    className="text-4xl font-black mb-2"
                     style={{ color: "#facc15" }}
                   >
-                    Analysis Results
-                  </span>
+                    {i18n.validationResults}
+                  </h2>
+                  <p
+                    style={{ fontSize: "18px", color: "rgba(148,163,184,0.7)" }}
+                  >
+                    Kiểm tra hoàn tất: {passedArchetypes.length} Archetype đủ
+                    điều kiện, {failedArchetypes.length} chưa đủ
+                  </p>
                 </div>
-                <div
-                  className="flex-1 h-px"
+                <button
+                  onClick={handleReset}
+                  className="px-8 py-4 rounded-xl font-bold uppercase tracking-wide transition-all"
                   style={{
-                    background:
-                      "linear-gradient(270deg, rgba(250,204,21,0.3), transparent)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "rgba(148,163,184,0.8)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    cursor: "pointer",
+                    fontSize: "14px",
                   }}
-                />
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(250,204,21,0.1)";
+                    e.currentTarget.style.borderColor = "rgba(250,204,21,0.3)";
+                    e.currentTarget.style.color = "#facc15";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                    e.currentTarget.style.borderColor =
+                      "rgba(255,255,255,0.08)";
+                    e.currentTarget.style.color = "rgba(148,163,184,0.8)";
+                  }}
+                >
+                  Kiểm Tra Deck Mới
+                </button>
               </div>
 
-              {/* Deck stats */}
-              {results.deckStats && (
-                <div className="grid grid-cols-3 gap-4 mb-10">
-                  <StatCard
-                    label="Main Deck"
-                    value={results.deckStats.mainCount}
-                    color="#facc15"
-                    glow="#facc15"
-                  />
-                  <StatCard
-                    label="Extra Deck"
-                    value={results.deckStats.extraCount}
-                    color="#818cf8"
-                    glow="#818cf8"
-                  />
-                  <StatCard
-                    label="Side Deck"
-                    value={results.deckStats.sideCount}
-                    color="#34d399"
-                    glow="#34d399"
-                  />
+              {/* Deck Statistics */}
+              {deckStats && (
+                <div
+                  className="rounded-2xl overflow-hidden p-8 grid grid-cols-2 md:grid-cols-4 gap-6"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(5,15,35,0.95) 0%, rgba(8,22,50,0.9) 100%)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div className="text-center">
+                    <div
+                      style={{
+                        fontFamily: "'Rajdhani', sans-serif",
+                        fontSize: "32px",
+                        fontWeight: 900,
+                        color: "#34d399",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      {deckStats.archetypes}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "rgba(148,163,184,0.7)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {i18n.totalArchetypes}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div
+                      style={{
+                        fontFamily: "'Rajdhani', sans-serif",
+                        fontSize: "32px",
+                        fontWeight: 900,
+                        color: "#60a5fa",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      {deckStats.monsterCount}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "rgba(148,163,184,0.7)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {i18n.totalMonsters}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div
+                      style={{
+                        fontFamily: "'Rajdhani', sans-serif",
+                        fontSize: "32px",
+                        fontWeight: 900,
+                        color: "#f97316",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      {deckStats.spellCount}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "rgba(148,163,184,0.7)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {i18n.totalSpells}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div
+                      style={{
+                        fontFamily: "'Rajdhani', sans-serif",
+                        fontSize: "32px",
+                        fontWeight: 900,
+                        color: "#e879f9",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      {deckStats.trapCount}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "rgba(148,163,184,0.7)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {i18n.totalTraps}
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* Passed archetypes */}
-              {passedArchetypes.length > 0 ? (
-                <div className="mb-10">
-                  <div className="flex items-center gap-3 mb-5">
-                    <h2
-                      className="section-title text-base"
-                      style={{ color: "#6ee7b7" }}
-                    >
-                      Eligible Archetypes ({passedArchetypes.length})
-                    </h2>
-                    <div
-                      className="flex-1 h-px"
-                      style={{ background: "rgba(52,211,153,0.15)" }}
-                    />
-                  </div>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {/* Eligible Archetypes */}
+              {passedArchetypes.length > 0 && (
+                <div>
+                  <h3
+                    className="text-2xl font-black mb-6"
+                    style={{ color: "#34d399" }}
+                  >
+                    ✓ {i18n.eligibleArchetypes} ({passedArchetypes.length})
+                  </h3>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {passedArchetypes.map(({ key, result }) => (
                       <ArchetypeCard
                         key={key}
                         archetypeKey={key}
                         result={result}
+                        teamWins={parseInt(teamWins)}
+                        teamLosses={parseInt(teamLosses)}
+                        unlockedArchetypes={parseInt(unlockedArchetypes)}
+                        isEligible={true}
                       />
                     ))}
                   </div>
                 </div>
-              ) : (
-                <div
-                  className="mb-10 p-10 rounded-2xl text-center"
-                  style={{
-                    background: "rgba(239,68,68,0.04)",
-                    border: "1px solid rgba(239,68,68,0.15)",
-                  }}
-                >
-                  <h3
-                    style={{
-                      fontFamily: "'Rajdhani', sans-serif",
-                      fontSize: "22px",
-                      fontWeight: 900,
-                      color: "#e2e8f0",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    No Archetypes Eligible
-                  </h3>
-                  <p
-                    style={{
-                      fontSize: "14px",
-                      color: "rgba(100,116,139,0.8)",
-                      maxWidth: "400px",
-                      margin: "0 auto",
-                    }}
-                  >
-                    This deck does not meet the required conditions for any
-                    registered archetype. Review the conditions listed on the
-                    right and adjust your deck composition.
-                  </p>
-                </div>
               )}
 
-              {/* Failed archetypes — simple list, no details */}
+              {/* Ineligible Archetypes */}
               {failedArchetypes.length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-4">
-                    <h2
-                      className="section-title text-sm"
-                      style={{ color: "rgba(248,113,113,0.7)" }}
-                    >
-                      Not Eligible ({failedArchetypes.length})
-                    </h2>
-                    <div
-                      className="flex-1 h-px"
-                      style={{ background: "rgba(248,113,113,0.1)" }}
-                    />
-                  </div>
-                  <div
-                    className="rounded-xl overflow-hidden p-3 flex flex-wrap gap-2"
-                    style={{
-                      background: "rgba(5,10,25,0.6)",
-                      border: "1px solid rgba(255,255,255,0.04)",
-                    }}
+                <div>
+                  <h3
+                    className="text-2xl font-black mb-6"
+                    style={{ color: "rgba(100,116,139,0.7)" }}
                   >
+                    ✗ {i18n.ineligibleArchetypes} ({failedArchetypes.length})
+                  </h3>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {failedArchetypes.map(({ key, result }) => (
-                      <span
+                      <ArchetypeCard
                         key={key}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                        style={{
-                          background: "rgba(248,113,113,0.07)",
-                          border: "1px solid rgba(248,113,113,0.18)",
-                          color: "rgba(248,113,113,0.65)",
-                          fontFamily: "'Rajdhani', sans-serif",
-                        }}
-                      >
-                        {result.archetypeLabel ?? key}
-                      </span>
+                        archetypeKey={key}
+                        result={result}
+                        teamWins={parseInt(teamWins)}
+                        teamLosses={parseInt(teamLosses)}
+                        unlockedArchetypes={parseInt(unlockedArchetypes)}
+                        isEligible={false}
+                      />
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Warnings */}
-              {results.warnings?.length > 0 && (
-                <div
-                  className="flex items-start gap-3 p-4 rounded-xl"
-                  style={{
-                    background: "rgba(245,158,11,0.06)",
-                    border: "1px solid rgba(245,158,11,0.2)",
-                  }}
-                >
-                  <p
+              {passedArchetypes.length === 0 &&
+                failedArchetypes.length === 0 && (
+                  <div
+                    className="p-8 rounded-2xl text-center text-xl"
                     style={{
-                      fontSize: "13px",
-                      color: "rgba(253,230,138,0.85)",
-                      lineHeight: 1.6,
+                      background: "rgba(99,102,241,0.1)",
+                      border: "1px solid rgba(99,102,241,0.2)",
+                      color: "rgba(148,163,184,0.8)",
                     }}
                   >
-                    {results.warnings[0]}
-                  </p>
-                </div>
-              )}
+                    {i18n.noEligible}
+                  </div>
+                )}
             </div>
           )}
         </main>
-
-        {/* ══════════════════════════════════════════════════
-            FOOTER
-        ══════════════════════════════════════════════════ */}
-        <footer
-          className="relative py-10 mt-8"
-          style={{
-            zIndex: 10,
-            borderTop: "1px solid rgba(255,255,255,0.04)",
-            background: "rgba(3,8,16,0.6)",
-          }}
-        >
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <div
-                className="h-px w-16"
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent, rgba(250,204,21,0.3))",
-                }}
-              />
-              <span
-                style={{
-                  fontSize: "14px",
-                  color: "rgba(250,204,21,0.5)",
-                  letterSpacing: "0.2em",
-                }}
-              >
-                ◆
-              </span>
-              <div
-                className="h-px w-16"
-                style={{
-                  background:
-                    "linear-gradient(270deg, transparent, rgba(250,204,21,0.3))",
-                }}
-              />
-            </div>
-            <p
-              style={{
-                fontSize: "12px",
-                color: "rgba(100,116,139,0.6)",
-                marginBottom: "6px",
-              }}
-            >
-              Card database powered by{" "}
-              <a
-                href="https://ygoprodeck.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  color: "rgba(250,204,21,0.6)",
-                  textDecoration: "none",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "#facc15";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "rgba(250,204,21,0.6)";
-                }}
-              >
-                YGOPRODeck
-              </a>{" "}
-              • Refreshed every 24 hours
-            </p>
-            <p style={{ fontSize: "11px", color: "rgba(71,85,105,0.6)" }}>
-              Yu-Gi-Oh! Tournament Deck Validator System — Professional
-              Archetype Analysis
-            </p>
-          </div>
-        </footer>
       </div>
+
+      <style jsx>{`
+        @keyframes pulse {
+          0%,
+          100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.7;
+          }
+        }
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.6s ease-out;
+        }
+      `}</style>
     </>
   );
 }
