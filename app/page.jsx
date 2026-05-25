@@ -682,7 +682,7 @@ export default function HomePage() {
                         color: "rgba(148,163,184,0.6)",
                       }}
                     >
-                      Nhập thông tin đội ngũ của bạn để bắt đầu kiểm tra
+                      Nhập thông tin đội của bạn để bắt đầu kiểm tra
                     </p>
                   </div>
                 </div>
@@ -765,7 +765,7 @@ export default function HomePage() {
                           color: "#facc15",
                         }}
                       >
-                        ⚡ Điều chỉnh: +{additionalWins} Trận Thắng yêu cầu
+                        Điều chỉnh: +{additionalWins} Trận Thắng yêu cầu
                       </p>
                     )}
                   </div>
@@ -1052,7 +1052,7 @@ export default function HomePage() {
                       className="text-xl font-bold mb-6"
                       style={{ color: "#a5b4fc" }}
                     >
-                      📊 Thông Tin Đội Ngũ
+                      Thông Tin Đội
                     </h3>
                     <div className="space-y-4">
                       <div
@@ -1135,7 +1135,7 @@ export default function HomePage() {
                             fontWeight: 600,
                           }}
                         >
-                          ⚡ Điều chỉnh Scaling: +{additionalWins} Trận Thắng
+                          Điều chỉnh Scaling: +{additionalWins} Trận Thắng
                         </div>
                       )}
                     </div>
