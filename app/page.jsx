@@ -765,7 +765,7 @@ export default function HomePage() {
                           color: "#facc15",
                         }}
                       >
-                        Điều chỉnh: +{additionalWins} Trận Thắng yêu cầu
+                        Điều chỉnh: +{additionalWins} Trận Thắng/Thua yêu cầu
                       </p>
                     )}
                   </div>
