@@ -9,342 +9,16 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
-// ─── SVG Icon Components ───────────────────────────────────────────────────────
-
-const IconCheck = ({ className = "w-5 h-5" }) => (
-  <svg
-    className={className}
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth={2.5}
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-  </svg>
-);
-
-const IconX = ({ className = "w-5 h-5" }) => (
-  <svg
-    className={className}
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth={2.5}
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M6 18L18 6M6 6l12 12"
-    />
-  </svg>
-);
-
-const IconLoader = ({ className = "w-5 h-5 animate-spin" }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24">
-    <circle
-      className="opacity-25"
-      cx="12"
-      cy="12"
-      r="10"
-      stroke="currentColor"
-      strokeWidth="4"
-    />
-    <path
-      className="opacity-75"
-      fill="currentColor"
-      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-    />
-  </svg>
-);
-
-const IconShield = ({ className = "w-5 h-5" }) => (
-  <svg
-    className={className}
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth={1.5}
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
-    />
-  </svg>
-);
-
-const IconWarning = ({ className = "w-5 h-5" }) => (
-  <svg
-    className={className}
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth={2}
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-    />
-  </svg>
-);
-
-const IconChevronRight = ({ className = "w-4 h-4" }) => (
-  <svg
-    className={className}
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth={2.5}
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M8.25 4.5l7.5 7.5-7.5 7.5"
-    />
-  </svg>
-);
-
-const IconStar = ({ className = "w-4 h-4" }) => (
-  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
-    <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-  </svg>
-);
-
-// ─── Detail Modal ─────────────────────────────────────────────────────────────
-
-function DetailModal({ archetype, result, onClose }) {
-  const passCount = result.results?.filter((r) => r.pass).length ?? 0;
-  const totalCount = result.results?.length ?? 0;
-
-  useEffect(() => {
-    const handleKey = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-        style={{
-          background:
-            "linear-gradient(135deg, #050d1a 0%, #0a1628 50%, #050d1a 100%)",
-          border: "1px solid rgba(250,204,21,0.3)",
-          borderRadius: "16px",
-          boxShadow:
-            "0 0 60px rgba(250,204,21,0.15), 0 0 120px rgba(234,179,8,0.08), inset 0 1px 0 rgba(255,255,255,0.05)",
-        }}
-      >
-        {/* Corner decorations */}
-        <div
-          className="absolute top-0 left-0 w-16 h-16 pointer-events-none"
-          style={{
-            background:
-              "linear-gradient(135deg, rgba(250,204,21,0.2) 0%, transparent 60%)",
-            borderRadius: "16px 0 0 0",
-          }}
-        />
-        <div
-          className="absolute top-0 right-0 w-16 h-16 pointer-events-none"
-          style={{
-            background:
-              "linear-gradient(225deg, rgba(250,204,21,0.2) 0%, transparent 60%)",
-            borderRadius: "0 16px 0 0",
-          }}
-        />
-
-        <div className="p-8">
-          {/* Close */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-lg transition-all duration-200"
-            style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.1)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(239,68,68,0.2)";
-              e.currentTarget.style.borderColor = "rgba(239,68,68,0.4)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-            }}
-          >
-            <IconX className="w-4 h-4 text-gray-400" />
-          </button>
-
-          {/* Header */}
-          <div className="mb-8">
-            <div
-              className="inline-flex items-center gap-2 px-3 py-1.5 mb-4 rounded-full text-xs font-bold uppercase tracking-widest"
-              style={{
-                background: "rgba(250,204,21,0.15)",
-                border: "1px solid rgba(250,204,21,0.3)",
-                color: "#facc15",
-              }}
-            >
-              <IconStar className="w-3 h-3" />
-              Archetype Details
-            </div>
-            <h2
-              className="text-4xl font-black mb-3"
-              style={{
-                fontFamily: "'Rajdhani', sans-serif",
-                background: "linear-gradient(135deg, #fff 0%, #facc15 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              {result.archetypeLabel ?? archetype}
-            </h2>
-            <p
-              className="text-sm leading-relaxed"
-              style={{ color: "rgba(148,163,184,0.9)" }}
-            >
-              {result.archetypeDescription ?? "Archetype condition analysis"}
-            </p>
-          </div>
-
-          {/* Stats */}
-          <div
-            className="mb-6 p-5 rounded-xl"
-            style={{
-              background: "rgba(250,204,21,0.06)",
-              border: "1px solid rgba(250,204,21,0.15)",
-            }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span
-                className="text-xs uppercase tracking-widest font-bold"
-                style={{ color: "rgba(148,163,184,0.8)" }}
-              >
-                Conditions Passed
-              </span>
-              <span
-                className="text-2xl font-black"
-                style={{
-                  color:
-                    passCount === totalCount
-                      ? "#34d399"
-                      : passCount > 0
-                        ? "#facc15"
-                        : "#f87171",
-                }}
-              >
-                {passCount} / {totalCount}
-              </span>
-            </div>
-            <div
-              className="w-full h-2 rounded-full"
-              style={{ background: "rgba(255,255,255,0.07)" }}
-            >
-              <div
-                className="h-2 rounded-full transition-all duration-700"
-                style={{
-                  width: `${totalCount > 0 ? (passCount / totalCount) * 100 : 0}%`,
-                  background:
-                    passCount === totalCount
-                      ? "linear-gradient(90deg, #10b981, #34d399)"
-                      : "linear-gradient(90deg, #f59e0b, #facc15)",
-                  boxShadow:
-                    passCount === totalCount
-                      ? "0 0 12px rgba(52,211,153,0.5)"
-                      : "0 0 12px rgba(250,204,21,0.5)",
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Conditions */}
-          <div className="space-y-3">
-            <h3
-              className="text-xs uppercase tracking-widest font-bold mb-4"
-              style={{ color: "rgba(250,204,21,0.7)" }}
-            >
-              Condition Breakdown
-            </h3>
-            {result.results?.map((condition, idx) => (
-              <div
-                key={idx}
-                className="p-4 rounded-xl transition-all"
-                style={{
-                  background: condition.pass
-                    ? "rgba(52,211,153,0.06)"
-                    : "rgba(248,113,113,0.06)",
-                  border: `1px solid ${condition.pass ? "rgba(52,211,153,0.25)" : "rgba(248,113,113,0.25)"}`,
-                }}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5"
-                    style={{
-                      background: condition.pass
-                        ? "rgba(52,211,153,0.2)"
-                        : "rgba(248,113,113,0.2)",
-                    }}
-                  >
-                    {condition.pass ? (
-                      <IconCheck
-                        className="w-3.5 h-3.5"
-                        style={{ color: "#34d399" }}
-                      />
-                    ) : (
-                      <IconX
-                        className="w-3.5 h-3.5"
-                        style={{ color: "#f87171" }}
-                      />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p
-                      className="text-sm font-semibold leading-snug"
-                      style={{ color: condition.pass ? "#6ee7b7" : "#fca5a5" }}
-                    >
-                      {condition.message}
-                    </p>
-                    {condition.detail && (
-                      <p
-                        className="text-xs mt-1"
-                        style={{ color: "rgba(148,163,184,0.6)" }}
-                      >
-                        {condition.detail}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Archetype Card Component ─────────────────────────────────────────────────
 
-function ArchetypeCard({ archetypeKey, result, onClickDetails }) {
-  const passCount = result.results?.filter((r) => r.pass).length ?? 0;
-  const totalCount = result.results?.length ?? 0;
-  const pct = totalCount > 0 ? (passCount / totalCount) * 100 : 0;
+function ArchetypeCard({ archetypeKey, result }) {
   const [hovered, setHovered] = useState(false);
 
   return (
-    <button
-      onClick={() => onClickDetails(archetypeKey, result)}
+    <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="group relative text-left w-full transition-all duration-300"
+      className="relative text-left w-full transition-all duration-300"
       style={{ transform: hovered ? "translateY(-2px)" : "none" }}
     >
       {/* Outer glow */}
@@ -358,7 +32,7 @@ function ArchetypeCard({ archetypeKey, result, onClickDetails }) {
         }}
       />
       <div
-        className="relative p-5 rounded-xl overflow-hidden"
+        className="relative px-5 py-3.5 rounded-xl overflow-hidden flex items-center gap-3"
         style={{
           background:
             "linear-gradient(135deg, rgba(5,20,40,0.9) 0%, rgba(8,25,50,0.95) 100%)",
@@ -377,132 +51,34 @@ function ArchetypeCard({ archetypeKey, result, onClickDetails }) {
           }}
         />
 
-        {/* Top row */}
-        <div className="relative flex items-start justify-between mb-4">
-          <div>
-            <div
-              className="text-xs uppercase tracking-widest font-bold mb-1"
-              style={{ color: "rgba(52,211,153,0.6)" }}
-            >
-              Archetype
-            </div>
-            <h3
-              className="text-lg font-black leading-tight"
-              style={{
-                fontFamily: "'Rajdhani', sans-serif",
-                color: hovered ? "#fff" : "#e2e8f0",
-                letterSpacing: "-0.01em",
-                transition: "color 0.2s",
-              }}
-            >
-              {result.archetypeLabel ?? archetypeKey}
-            </h3>
-          </div>
-          <div
-            className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-            style={{
-              background: "rgba(52,211,153,0.2)",
-              border: "1px solid rgba(52,211,153,0.4)",
-              boxShadow: "0 0 16px rgba(52,211,153,0.3)",
-            }}
-          >
-            <IconCheck className="w-5 h-5" style={{ color: "#34d399" }} />
-          </div>
-        </div>
-
-        {/* Progress */}
-        <div className="relative space-y-2 mb-4">
-          <div className="flex items-center justify-between text-xs">
-            <span style={{ color: "rgba(148,163,184,0.7)" }}>Conditions</span>
-            <span className="font-bold" style={{ color: "#34d399" }}>
-              {passCount}/{totalCount}
-            </span>
-          </div>
-          <div
-            className="w-full h-1.5 rounded-full"
-            style={{ background: "rgba(255,255,255,0.06)" }}
-          >
-            <div
-              className="h-1.5 rounded-full transition-all duration-700"
-              style={{
-                width: `${pct}%`,
-                background: "linear-gradient(90deg, #10b981, #34d399)",
-                boxShadow: "0 0 8px rgba(52,211,153,0.5)",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Click prompt */}
+        {/* Green dot indicator */}
         <div
-          className="relative flex items-center gap-1.5 text-xs font-semibold transition-all duration-200"
+          className="relative flex-shrink-0 w-2.5 h-2.5 rounded-full"
           style={{
-            color: hovered ? "rgba(52,211,153,0.9)" : "rgba(148,163,184,0.4)",
+            background: "#34d399",
+            boxShadow: "0 0 8px rgba(52,211,153,0.7)",
           }}
-        >
-          View details <IconChevronRight className="w-3.5 h-3.5" />
-        </div>
-      </div>
-    </button>
-  );
-}
+        />
 
-// ─── Failed Archetype Row ─────────────────────────────────────────────────────
-
-function FailedArchetypeRow({ archetypeKey, result, onClickDetails }) {
-  const passCount = result.results?.filter((r) => r.pass).length ?? 0;
-  const totalCount = result.results?.length ?? 0;
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <button
-      onClick={() => onClickDetails(archetypeKey, result)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="w-full text-left flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200"
-      style={{
-        background: hovered ? "rgba(248,113,113,0.06)" : "transparent",
-        border: `1px solid ${hovered ? "rgba(248,113,113,0.2)" : "rgba(255,255,255,0.05)"}`,
-      }}
-    >
-      <div
-        className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
-        style={{
-          background: "rgba(248,113,113,0.1)",
-          border: "1px solid rgba(248,113,113,0.25)",
-        }}
-      >
-        <IconX className="w-4 h-4" style={{ color: "#f87171" }} />
-      </div>
-      <div className="flex-1 min-w-0">
+        {/* Label */}
         <span
-          className="text-sm font-bold"
-          style={{ color: hovered ? "#fca5a5" : "#94a3b8" }}
+          className="relative text-sm font-bold leading-tight"
+          style={{
+            fontFamily: "'Rajdhani', sans-serif",
+            color: hovered ? "#fff" : "#e2e8f0",
+            transition: "color 0.2s",
+          }}
         >
           {result.archetypeLabel ?? archetypeKey}
         </span>
       </div>
-      <div
-        className="flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full"
-        style={{
-          background: "rgba(248,113,113,0.1)",
-          color: "#f87171",
-          border: "1px solid rgba(248,113,113,0.2)",
-        }}
-      >
-        {passCount}/{totalCount}
-      </div>
-      <IconChevronRight
-        className="w-3.5 h-3.5 flex-shrink-0"
-        style={{ color: "rgba(148,163,184,0.3)" }}
-      />
-    </button>
+    </div>
   );
 }
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
-function StatCard({ label, value, icon, color, glow }) {
+function StatCard({ label, value, color, glow }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
@@ -517,7 +93,6 @@ function StatCard({ label, value, icon, color, glow }) {
         transform: hovered ? "translateY(-3px)" : "none",
       }}
     >
-      <div className="text-3xl mb-3">{icon}</div>
       <div
         className="text-4xl font-black mb-1.5"
         style={{
@@ -549,14 +124,10 @@ export default function HomePage() {
   const [dbLoading, setDbLoading] = useState(true);
   const [results, setResults] = useState(null);
   const [error, setError] = useState("");
-  const [selectedArchetype, setSelectedArchetype] = useState(null);
-  const [selectedResult, setSelectedResult] = useState(null);
   const [validateBtnHover, setValidateBtnHover] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const textareaRef = useRef(null);
 
   useEffect(() => {
-    setMounted(true);
     fetch("/api/cards")
       .then((r) => r.json())
       .catch(() => {})
@@ -571,7 +142,6 @@ export default function HomePage() {
     setLoading(true);
     setError("");
     setResults(null);
-    setSelectedArchetype(null);
 
     try {
       const res = await fetch("/api/validate", {
@@ -599,8 +169,6 @@ export default function HomePage() {
     setDeckString("");
     setResults(null);
     setError("");
-    setSelectedArchetype(null);
-    setSelectedResult(null);
     textareaRef.current?.focus();
   };
 
@@ -623,18 +191,30 @@ export default function HomePage() {
         style={{ background: "#030810", color: "#e2e8f0" }}
       >
         {/* ══════════════════════════════════════════════════
-            BACKGROUND LAYER — Duel Arena Environment
+            BACKGROUND LAYER
         ══════════════════════════════════════════════════ */}
         <div
           className="fixed inset-0 pointer-events-none overflow-hidden"
           style={{ zIndex: 0 }}
         >
+          {/* Background image */}
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: "asset('assets/bg.jpg')",
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+              opacity: 0.18,
+            }}
+          />
+
           {/* Duel grid floor */}
           <div className="duel-grid absolute inset-0" />
 
           {/* Primary atmosphere orbs */}
           <div
-            className="absolute animate-pulse-glow"
+            className="absolute"
             style={{
               top: "-15%",
               right: "-10%",
@@ -657,75 +237,6 @@ export default function HomePage() {
               background:
                 "radial-gradient(circle, rgba(99,102,241,0.1) 0%, rgba(99,102,241,0.03) 40%, transparent 70%)",
               animation: "pulse-glow 8s ease-in-out infinite 2s",
-            }}
-          />
-          <div
-            className="absolute"
-            style={{
-              top: "40%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "600px",
-              height: "600px",
-              borderRadius: "50%",
-              background:
-                "radial-gradient(circle, rgba(6,182,212,0.05) 0%, transparent 70%)",
-              animation: "pulse-glow 10s ease-in-out infinite 4s",
-            }}
-          />
-
-          {/* Floating card silhouettes */}
-          <div
-            className="animate-float-slow absolute opacity-[0.04]"
-            style={{
-              top: "10%",
-              right: "5%",
-              width: "120px",
-              height: "168px",
-              border: "2px solid rgba(250,204,21,0.8)",
-              borderRadius: "8px",
-              background: "rgba(250,204,21,0.05)",
-              transform: "rotate(12deg)",
-            }}
-          />
-          <div
-            className="animate-float-med absolute opacity-[0.03]"
-            style={{
-              top: "55%",
-              right: "8%",
-              width: "90px",
-              height: "126px",
-              border: "2px solid rgba(99,102,241,0.8)",
-              borderRadius: "8px",
-              background: "rgba(99,102,241,0.05)",
-              transform: "rotate(-8deg)",
-            }}
-          />
-          <div
-            className="animate-float-slow absolute opacity-[0.04]"
-            style={{
-              bottom: "15%",
-              left: "3%",
-              width: "100px",
-              height: "140px",
-              border: "2px solid rgba(6,182,212,0.8)",
-              borderRadius: "8px",
-              background: "rgba(6,182,212,0.05)",
-              transform: "rotate(-15deg)",
-              animationDelay: "3s",
-            }}
-          />
-          <div
-            className="animate-float-med absolute opacity-[0.03]"
-            style={{
-              top: "25%",
-              left: "6%",
-              width: "80px",
-              height: "112px",
-              border: "1.5px solid rgba(250,204,21,0.6)",
-              borderRadius: "8px",
-              transform: "rotate(6deg)",
-              animationDelay: "2s",
             }}
           />
 
@@ -787,7 +298,7 @@ export default function HomePage() {
         </div>
 
         {/* ══════════════════════════════════════════════════
-            HEADER — Tournament System Identity
+            HEADER
         ══════════════════════════════════════════════════ */}
         <header
           className="relative"
@@ -838,46 +349,17 @@ export default function HomePage() {
 
               {/* Main hero */}
               <div className="py-12 sm:py-16">
-                {/* Badge */}
-                <div
-                  className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-[0.15em]"
-                  style={{
-                    background: "rgba(250,204,21,0.08)",
-                    border: "1px solid rgba(250,204,21,0.2)",
-                    color: "rgba(250,204,21,0.8)",
-                  }}
-                >
-                  <IconShield className="w-3.5 h-3.5" />
-                  Archetype Condition Validator
-                </div>
-
-                {/* Main title */}
+                {/* Logo */}
                 <div className="mb-6">
-                  <h1
+                  <img
+                    src="assets/logo.png"
+                    alt="XYGO Tournament Logo"
                     style={{
-                      fontFamily: "'Rajdhani', sans-serif",
-                      fontSize: "clamp(2.5rem, 7vw, 5rem)",
-                      fontWeight: 900,
-                      lineHeight: 0.95,
-                      letterSpacing: "-0.02em",
-                      marginBottom: "0.5rem",
+                      height: "80px",
+                      width: "auto",
+                      objectFit: "contain",
                     }}
-                  >
-                    <span
-                      style={{
-                        display: "block",
-                        color: "rgba(255,255,255,0.9)",
-                      }}
-                    >
-                      Yu-Gi-Oh!
-                    </span>
-                    <span
-                      className="holographic-title"
-                      style={{ display: "block" }}
-                    >
-                      Deck Validator
-                    </span>
-                  </h1>
+                  />
                 </div>
 
                 <p
@@ -897,7 +379,7 @@ export default function HomePage() {
                 {/* Stats strip */}
                 <div className="flex flex-wrap items-center gap-6">
                   {[
-                    { label: "Archetypes", value: "3+" },
+                    { label: "Archetypes", value: "44" },
                     { label: "Conditions Checked", value: "Auto" },
                     { label: "DB Updated", value: "24h" },
                   ].map((s) => (
@@ -958,15 +440,6 @@ export default function HomePage() {
                     background: "rgba(255,255,255,0.02)",
                   }}
                 >
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center"
-                    style={{
-                      background: "rgba(250,204,21,0.15)",
-                      border: "1px solid rgba(250,204,21,0.3)",
-                    }}
-                  >
-                    <span style={{ fontSize: "14px" }}>📋</span>
-                  </div>
                   <div>
                     <div
                       className="section-title text-sm"
@@ -1036,15 +509,6 @@ export default function HomePage() {
                         border: "1px solid rgba(239,68,68,0.25)",
                       }}
                     >
-                      <div
-                        className="flex-shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center rounded-full"
-                        style={{ background: "rgba(239,68,68,0.2)" }}
-                      >
-                        <IconX
-                          className="w-3 h-3"
-                          style={{ color: "#f87171" }}
-                        />
-                      </div>
                       <p
                         style={{
                           fontSize: "13px",
@@ -1089,20 +553,11 @@ export default function HomePage() {
                       }
                     >
                       {loading ? (
-                        <>
-                          <IconLoader className="w-4 h-4" />
-                          <span>Analyzing Deck...</span>
-                        </>
+                        <span>Analyzing Deck...</span>
                       ) : !deckString.trim() ? (
-                        <>
-                          <span>⚡</span>
-                          <span>Paste Deck to Validate</span>
-                        </>
+                        <span>Paste Deck to Validate</span>
                       ) : (
-                        <>
-                          <span>⚡</span>
-                          <span>Validate Deck</span>
-                        </>
+                        <span>Validate Deck</span>
                       )}
                     </button>
 
@@ -1132,7 +587,6 @@ export default function HomePage() {
                           e.currentTarget.style.color = "rgba(148,163,184,0.8)";
                         }}
                       >
-                        <IconX className="w-4 h-4" />
                         Clear
                       </button>
                     )}
@@ -1148,37 +602,24 @@ export default function HomePage() {
                   border: "1px solid rgba(250,204,21,0.1)",
                 }}
               >
-                <div className="flex items-start gap-3">
-                  <span
-                    style={{
-                      fontSize: "14px",
-                      flexShrink: 0,
-                      marginTop: "1px",
-                    }}
-                  >
-                    💡
-                  </span>
-                  <div>
-                    <p
-                      style={{
-                        fontSize: "12px",
-                        color: "rgba(148,163,184,0.7)",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      Export your deck from{" "}
-                      <strong style={{ color: "rgba(250,204,21,0.8)" }}>
-                        YGO Omega
-                      </strong>
-                      ,{" "}
-                      <strong style={{ color: "rgba(250,204,21,0.8)" }}>
-                        YGO ProDeck
-                      </strong>
-                      , or any compatible app as a YDKE link or .ydk file. The
-                      system automatically detects the format.
-                    </p>
-                  </div>
-                </div>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "rgba(148,163,184,0.7)",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Export your deck from{" "}
+                  <strong style={{ color: "rgba(250,204,21,0.8)" }}>
+                    YGO Omega
+                  </strong>
+                  ,{" "}
+                  <strong style={{ color: "rgba(250,204,21,0.8)" }}>
+                    YGO ProDeck
+                  </strong>
+                  , or any compatible app as a YDKE link or .ydk file. The
+                  system automatically detects the format.
+                </p>
               </div>
             </div>
 
@@ -1200,70 +641,403 @@ export default function HomePage() {
                   className="px-6 py-4 flex items-center gap-2"
                   style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
                 >
-                  <span style={{ fontSize: "14px" }}>🏆</span>
                   <span
                     className="section-title text-sm"
                     style={{ color: "rgba(255,255,255,0.85)" }}
                   >
                     Active Archetypes
                   </span>
+                  <span
+                    className="ml-auto text-xs font-bold px-2 py-0.5 rounded-full"
+                    style={{
+                      background: "rgba(250,204,21,0.12)",
+                      border: "1px solid rgba(250,204,21,0.25)",
+                      color: "#facc15",
+                    }}
+                  >
+                    44
+                  </span>
                 </div>
-                <div className="p-4 space-y-2.5">
+                <div
+                  className="p-4 space-y-4 overflow-y-auto"
+                  style={{ maxHeight: "520px" }}
+                >
                   {[
                     {
-                      key: "MALICE",
-                      label: "M∀LICE",
-                      desc: "≥25 DARK Monster + ≥45 Main",
-                      color: "#818cf8",
-                    },
-                    {
-                      key: "RYZEAL",
-                      label: "Ryzeal",
-                      desc: "≥10 LIGHT/Thunder + ≥7 Xyz Extra",
-                      color: "#facc15",
-                    },
-                    {
-                      key: "ARTMAGE",
-                      label: "Artmage",
-                      desc: "≥3 Attr + ≥10 Pendulum + ≥10 Spell",
+                      group: "10 Wins",
                       color: "#34d399",
+                      archetypes: [
+                        {
+                          key: "MALICE",
+                          label: "M∀LICE",
+                          desc: "≥25 DARK Monster + ≥45 Main Deck",
+                        },
+                        {
+                          key: "RYZEAL",
+                          label: "Ryzeal",
+                          desc: "≥10 LIGHT/Thunder + ≥7 Xyz Extra",
+                        },
+                        {
+                          key: "ARTMAGE",
+                          label: "Artmage",
+                          desc: "≥3 Attr (LIGHT+DARK) + ≥10 Pendulum + ≥10 Spell",
+                        },
+                        {
+                          key: "MARINCESS",
+                          label: "Marincess",
+                          desc: "≥10 WATER Monster + ≥5 Water Link Extra",
+                        },
+                        {
+                          key: "MIKANKO",
+                          label: "Mikanko",
+                          desc: "≥6 Monster + ≥3 Equip Spell",
+                        },
+                        {
+                          key: "TRAPTRIX",
+                          label: "Traptrix",
+                          desc: "≥10 Trap + ≥10 Insect/Plant Monster",
+                        },
+                      ],
                     },
-                  ].map((arch) => (
-                    <div
-                      key={arch.key}
-                      className="flex items-center gap-3 p-3 rounded-xl"
-                      style={{
-                        background: "rgba(255,255,255,0.02)",
-                        border: "1px solid rgba(255,255,255,0.04)",
-                      }}
-                    >
-                      <div
-                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                        style={{
-                          background: arch.color,
-                          boxShadow: `0 0 8px ${arch.color}`,
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
+                    {
+                      group: "20 Wins",
+                      color: "#facc15",
+                      archetypes: [
+                        {
+                          key: "BLUE_EYES",
+                          label: "Blue-Eyes",
+                          desc: "≥6 Level 8 Monster",
+                        },
+                        {
+                          key: "CHIMERA",
+                          label: "Chimera (Illusion)",
+                          desc: "≥2 Attribute + ≥2 Type (Illusion/Beast/Fiend)",
+                        },
+                        {
+                          key: "DDD",
+                          label: "D/D/D",
+                          desc: "Extra Deck: ≥1 Link + Fusion + Synchro + Xyz",
+                        },
+                        {
+                          key: "DARK_MAGICIAN",
+                          label: "Dark Magician",
+                          desc: "≥5 Spellcaster + ≥6 Spell + Lv7/6/1",
+                        },
+                        {
+                          key: "FLOOWANDEREEZE",
+                          label: "Floowandereeze",
+                          desc: "≥15 Winged Beast Monster",
+                        },
+                        {
+                          key: "HERO",
+                          label: "HERO",
+                          desc: "≥3 Fusion Monster w/ 3 diff Attributes",
+                        },
+                        {
+                          key: "LIVE_TWIN",
+                          label: "Live-Twin / Evil-Twin",
+                          desc: "≥10 Cyberse/Fiend + ≥2 Link-2 Extra",
+                        },
+                        {
+                          key: "MANNADIUM",
+                          label: "Mannadium",
+                          desc: "≥4 Archetypes + ≥8 Tuner Monster",
+                        },
+                        {
+                          key: "MATHMECH",
+                          label: "Mathmech",
+                          desc: "≥10 Cyberse + ≥1 Xyz + ≥1 Link Extra",
+                        },
+                        {
+                          key: "RITUAL_BEAST",
+                          label: "Ritual Beast",
+                          desc: "≥8 WIND Monster + ≥4 Fusion Extra",
+                        },
+                        {
+                          key: "SPYRAL",
+                          label: "SPYRAL",
+                          desc: "≥3 Hand/Deck viewing cards",
+                        },
+                        {
+                          key: "SWORDSOUL",
+                          label: "Swordsoul",
+                          desc: "≥10 Wyrm Monster + ≥7 Synchro Extra",
+                        },
+                        {
+                          key: "UNCHAINED",
+                          label: "Unchained",
+                          desc: "≥10 Fiend Monster + ≥5 Trap",
+                        },
+                      ],
+                    },
+                    {
+                      group: "30 Wins",
+                      color: "#f97316",
+                      archetypes: [
+                        {
+                          key: "BYSTIAL",
+                          label: "Bystial",
+                          desc: "≥3 Level 6 Dragon (LIGHT/DARK)",
+                        },
+                        {
+                          key: "ELFNOTE",
+                          label: "Elfnote",
+                          desc: "≥10 Fairy/Spellcaster + ≥10 Spell",
+                        },
+                        {
+                          key: "FIRE_KING",
+                          label: "Fire King",
+                          desc: "≥3 Archetypes + ≥10 FIRE Monster",
+                        },
+                        {
+                          key: "HORUS",
+                          label: "Horus",
+                          desc: "≥3 Archetypes + ≥4 Level 8 Monster (diff Attr)",
+                        },
+                        {
+                          key: "K9",
+                          label: "K9",
+                          desc: "≥10 EARTH/LIGHT + ≥5 Beast/Beast-Warrior",
+                        },
+                        {
+                          key: "SKY_STRIKER",
+                          label: "Sky Striker",
+                          desc: "≥20 Spell + ≤10 Monster",
+                        },
+                        {
+                          key: "SNAKE_EYES",
+                          label: "Snake-Eyes",
+                          desc: "≥10 FIRE Monster",
+                        },
+                        {
+                          key: "VAALMONICA",
+                          label: "Vaalmonica",
+                          desc: "≥10 Spell Card",
+                        },
+                        {
+                          key: "VANQUISH_SOUL",
+                          label: "Vanquish Soul",
+                          desc: "≥4 Attr (EARTH/FIRE/DARK req.) ≥3 each",
+                        },
+                      ],
+                    },
+                    {
+                      group: "40 Wins",
+                      color: "#e879f9",
+                      archetypes: [
+                        {
+                          key: "CENTUR_ION",
+                          label: "Centur-Ion",
+                          desc: "≥7 Synchro Extra Deck",
+                        },
+                        {
+                          key: "FIENDSMITH",
+                          label: "Fiendsmith",
+                          desc: "≥10 Fiend + ≥5 Special Summon cards",
+                        },
+                        {
+                          key: "KASHTIRA",
+                          label: "Kashtira",
+                          desc: "≥10 Psychic Monster + ≥5 Xyz Extra",
+                        },
+                        {
+                          key: "LABRYNTH",
+                          label: "Labrynth/Eldlich",
+                          desc: "≥20 Trap Card",
+                        },
+                        {
+                          key: "PURRELY",
+                          label: "Purrely",
+                          desc: "≥10 Quick-Play Spell",
+                        },
+                        {
+                          key: "RADIANT_TYPHOON",
+                          label: "Radiant Typhoon",
+                          desc: "≥3 Archetypes + ≥10 Quick-Play Spell",
+                        },
+                        {
+                          key: "RESCUE_ACE",
+                          label: "Rescue-ACE",
+                          desc: "≥10 Quick-Play + ≥10 Normal Trap + ≥5 Destroy",
+                        },
+                        {
+                          key: "VOICELESS_VOICE",
+                          label: "Voiceless Voice",
+                          desc: "≥10 LIGHT Monster + ≥5 Ritual Monster/Spell",
+                        },
+                      ],
+                    },
+                    {
+                      group: "50 Wins",
+                      color: "#60a5fa",
+                      archetypes: [
+                        {
+                          key: "BRANDED",
+                          label: "Branded",
+                          desc: "≥10 Fusion Material cards + ≥5 Fusion Extra",
+                        },
+                        {
+                          key: "DRACOTAIL",
+                          label: "Dracotail",
+                          desc: "≥15 Dragon Monster + ≥5 Special Summon",
+                        },
+                        {
+                          key: "KEWL_TUNE",
+                          label: "Kewl Tune",
+                          desc: "≥10 Tuner Monster + ≥7 Synchro Extra",
+                        },
+                        {
+                          key: "MITSURUGI",
+                          label: "Mitsurugi",
+                          desc: "≥10 Reptile Monster",
+                        },
+                        {
+                          key: "TENPAI_DRAGON",
+                          label: "Tenpai Dragon",
+                          desc: "≥12 Dragon Monster",
+                        },
+                        {
+                          key: "WHITE_FOREST",
+                          label: "White Forest",
+                          desc: "≥15 Spell + ≥5 Synchro Extra",
+                        },
+                      ],
+                    },
+                    {
+                      group: "20 Losses",
+                      color: "#94a3b8",
+                      archetypes: [
+                        {
+                          key: "DRAGONMAID",
+                          label: "Dragonmaid",
+                          desc: "≥8 Dragon Monster + ≥3 Fusion Extra",
+                        },
+                        {
+                          key: "ANTI_SPELL",
+                          label: "Anti-Spell Fragrance",
+                          desc: "≥10 Continuous Spell/Trap",
+                        },
+                        {
+                          key: "YUMMY",
+                          label: "Yummy",
+                          desc: "≥10 Ritual Monster + ≥5 Ritual Spell",
+                        },
+                      ],
+                    },
+                    {
+                      group: "30 Losses",
+                      color: "#fb7185",
+                      archetypes: [
+                        {
+                          key: "RUNICK",
+                          label: "Runick",
+                          desc: "≥10 Spell + ≥10 Trap",
+                        },
+                        {
+                          key: "YUBEL",
+                          label: "Yubel",
+                          desc: "≥10 Fiend Monster",
+                        },
+                      ],
+                    },
+                    {
+                      group: "40 Losses",
+                      color: "#a78bfa",
+                      archetypes: [
+                        {
+                          key: "ENNEACRAFT",
+                          label: "Enneacraft",
+                          desc: "≥12 Spell Card",
+                        },
+                        {
+                          key: "DINOSAUR",
+                          label: "Dinosaur Monster Type",
+                          desc: "≥10 unique card names",
+                        },
+                      ],
+                    },
+                    {
+                      group: "100 Losses",
+                      color: "#f87171",
+                      archetypes: [
+                        {
+                          key: "TEARLAMENTS",
+                          label: "Tearlaments (Full Power)",
+                          desc: "≥20 WATER/DARK/Aqua Monster",
+                        },
+                        {
+                          key: "ZOODIAC",
+                          label: "Zoodiac (Full Power)",
+                          desc: "≥5 Xyz Extra + ≥5 Beast Monster",
+                        },
+                      ],
+                    },
+                  ].map((section) => (
+                    <div key={section.group}>
+                      {/* Group label */}
+                      <div className="flex items-center gap-2 mb-2">
                         <div
+                          className="h-px flex-1"
+                          style={{ background: `${section.color}30` }}
+                        />
+                        <span
+                          className="text-xs font-black uppercase tracking-widest px-2 py-0.5 rounded"
                           style={{
-                            fontSize: "13px",
-                            fontWeight: 700,
-                            color: "#e2e8f0",
-                            fontFamily: "'Rajdhani', sans-serif",
+                            color: section.color,
+                            background: `${section.color}15`,
+                            border: `1px solid ${section.color}30`,
+                            fontFamily: "'Space Mono', monospace",
                           }}
                         >
-                          {arch.label}
-                        </div>
+                          {section.group}
+                        </span>
                         <div
-                          style={{
-                            fontSize: "11px",
-                            color: "rgba(100,116,139,0.8)",
-                            marginTop: "1px",
-                          }}
-                        >
-                          {arch.desc}
-                        </div>
+                          className="h-px flex-1"
+                          style={{ background: `${section.color}30` }}
+                        />
+                      </div>
+                      {/* Archetype rows */}
+                      <div className="space-y-1.5">
+                        {section.archetypes.map((arch) => (
+                          <div
+                            key={arch.key}
+                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                            style={{
+                              background: "rgba(255,255,255,0.02)",
+                              border: "1px solid rgba(255,255,255,0.04)",
+                            }}
+                          >
+                            <div
+                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              style={{
+                                background: section.color,
+                                boxShadow: `0 0 6px ${section.color}`,
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  fontWeight: 700,
+                                  color: "#e2e8f0",
+                                  fontFamily: "'Rajdhani', sans-serif",
+                                }}
+                              >
+                                {arch.label}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "10px",
+                                  color: "rgba(100,116,139,0.8)",
+                                  marginTop: "1px",
+                                  lineHeight: 1.3,
+                                }}
+                              >
+                                {arch.desc}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -1283,7 +1057,6 @@ export default function HomePage() {
                   className="px-6 py-4 flex items-center gap-2"
                   style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
                 >
-                  <span style={{ fontSize: "14px" }}>⚙️</span>
                   <span
                     className="section-title text-sm"
                     style={{ color: "rgba(255,255,255,0.85)" }}
@@ -1374,7 +1147,6 @@ export default function HomePage() {
                     border: "1px solid rgba(250,204,21,0.2)",
                   }}
                 >
-                  <span style={{ fontSize: "13px" }}>📊</span>
                   <span
                     className="section-title text-sm"
                     style={{ color: "#facc15" }}
@@ -1397,21 +1169,18 @@ export default function HomePage() {
                   <StatCard
                     label="Main Deck"
                     value={results.deckStats.mainCount}
-                    icon="🃏"
                     color="#facc15"
                     glow="#facc15"
                   />
                   <StatCard
                     label="Extra Deck"
                     value={results.deckStats.extraCount}
-                    icon="✨"
                     color="#818cf8"
                     glow="#818cf8"
                   />
                   <StatCard
                     label="Side Deck"
                     value={results.deckStats.sideCount}
-                    icon="🔮"
                     color="#34d399"
                     glow="#34d399"
                   />
@@ -1422,18 +1191,6 @@ export default function HomePage() {
               {passedArchetypes.length > 0 ? (
                 <div className="mb-10">
                   <div className="flex items-center gap-3 mb-5">
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center"
-                      style={{
-                        background: "rgba(52,211,153,0.2)",
-                        border: "1px solid rgba(52,211,153,0.4)",
-                      }}
-                    >
-                      <IconCheck
-                        className="w-3.5 h-3.5"
-                        style={{ color: "#34d399" }}
-                      />
-                    </div>
                     <h2
                       className="section-title text-base"
                       style={{ color: "#6ee7b7" }}
@@ -1445,16 +1202,12 @@ export default function HomePage() {
                       style={{ background: "rgba(52,211,153,0.15)" }}
                     />
                   </div>
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {passedArchetypes.map(({ key, result }) => (
                       <ArchetypeCard
                         key={key}
                         archetypeKey={key}
                         result={result}
-                        onClickDetails={(arch, res) => {
-                          setSelectedArchetype(arch);
-                          setSelectedResult(res);
-                        }}
                       />
                     ))}
                   </div>
@@ -1467,15 +1220,6 @@ export default function HomePage() {
                     border: "1px solid rgba(239,68,68,0.15)",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: "48px",
-                      marginBottom: "12px",
-                      opacity: 0.5,
-                    }}
-                  >
-                    🔒
-                  </div>
                   <h3
                     style={{
                       fontFamily: "'Rajdhani', sans-serif",
@@ -1496,28 +1240,16 @@ export default function HomePage() {
                     }}
                   >
                     This deck does not meet the required conditions for any
-                    registered archetype. Review the failed conditions below and
-                    adjust your deck composition.
+                    registered archetype. Review the conditions listed on the
+                    right and adjust your deck composition.
                   </p>
                 </div>
               )}
 
-              {/* Failed archetypes (collapsible list) */}
+              {/* Failed archetypes — simple list, no details */}
               {failedArchetypes.length > 0 && (
                 <div className="mb-8">
                   <div className="flex items-center gap-3 mb-4">
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center"
-                      style={{
-                        background: "rgba(248,113,113,0.15)",
-                        border: "1px solid rgba(248,113,113,0.3)",
-                      }}
-                    >
-                      <IconX
-                        className="w-3.5 h-3.5"
-                        style={{ color: "#f87171" }}
-                      />
-                    </div>
                     <h2
                       className="section-title text-sm"
                       style={{ color: "rgba(248,113,113,0.7)" }}
@@ -1528,32 +1260,27 @@ export default function HomePage() {
                       className="flex-1 h-px"
                       style={{ background: "rgba(248,113,113,0.1)" }}
                     />
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        color: "rgba(100,116,139,0.5)",
-                      }}
-                    >
-                      Click to see conditions
-                    </span>
                   </div>
                   <div
-                    className="rounded-xl overflow-hidden space-y-1 p-2"
+                    className="rounded-xl overflow-hidden p-3 flex flex-wrap gap-2"
                     style={{
                       background: "rgba(5,10,25,0.6)",
                       border: "1px solid rgba(255,255,255,0.04)",
                     }}
                   >
                     {failedArchetypes.map(({ key, result }) => (
-                      <FailedArchetypeRow
+                      <span
                         key={key}
-                        archetypeKey={key}
-                        result={result}
-                        onClickDetails={(arch, res) => {
-                          setSelectedArchetype(arch);
-                          setSelectedResult(res);
+                        className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                        style={{
+                          background: "rgba(248,113,113,0.07)",
+                          border: "1px solid rgba(248,113,113,0.18)",
+                          color: "rgba(248,113,113,0.65)",
+                          fontFamily: "'Rajdhani', sans-serif",
                         }}
-                      />
+                      >
+                        {result.archetypeLabel ?? key}
+                      </span>
                     ))}
                   </div>
                 </div>
@@ -1568,10 +1295,6 @@ export default function HomePage() {
                     border: "1px solid rgba(245,158,11,0.2)",
                   }}
                 >
-                  <IconWarning
-                    className="w-4 h-4 flex-shrink-0 mt-0.5"
-                    style={{ color: "#fbbf24" }}
-                  />
                   <p
                     style={{
                       fontSize: "13px",
@@ -1658,18 +1381,6 @@ export default function HomePage() {
           </div>
         </footer>
       </div>
-
-      {/* ─── Modal ─── */}
-      {selectedResult && (
-        <DetailModal
-          archetype={selectedArchetype}
-          result={selectedResult}
-          onClose={() => {
-            setSelectedArchetype(null);
-            setSelectedResult(null);
-          }}
-        />
-      )}
     </>
   );
 }
