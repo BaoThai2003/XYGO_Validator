@@ -24,13 +24,13 @@ const i18n = {
   officialTournament: "Hệ Thống Giải Đấu Chính Thức",
   loadingDB: "Đang tải CSDL...",
   dbOnline: "CSDL Trực Tuyến",
-  validatorTitle: "Trình Kiểm Định Deck Tournament",
+  validatorTitle: "Trình Kiểm Định Deck Tournament XYGO",
   validatorDesc:
-    "Xác thực deck của bạn theo các điều kiện riêng biệt cho từng Archetype. Nhập thông tin đội ngũ của bạn trước, sau đó dán YDKE hoặc nội dung tệp YDK.",
+    "Xác thực deck của bạn theo các điều kiện riêng biệt cho từng Archetype. Nhập thông tin đội của bạn trước, sau đó dán YDKE hoặc nội dung tệp YDK.",
 
   // Step 1: Team Stats
   step: "Bước",
-  stepTeamInfo: "Thông Tin Đội Ngũ",
+  stepTeamInfo: "Thông Tin Đội",
   teamWins: "Số Trận Thắng",
   teamLosses: "Số Trận Thua",
   unlockedArchetypes: "Số Archetype Đã Mở Khóa",
@@ -71,7 +71,7 @@ const i18n = {
   mainDeck: "Main Deck",
   extraDeck: "Extra Deck",
   sideDeck: "Side Deck",
-  mainTypes: "Loại Chính",
+  mainTypes: "Main Deck Types",
 
   // Archetype conditions
   deckCondition: "Điều Kiện Deck",
