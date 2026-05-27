@@ -606,8 +606,8 @@ export default function HomePage() {
                 <div className="flex flex-wrap items-center gap-8">
                   {[
                     { label: "Archetypes", value: "44" },
-                    { label: "Đã Kiểm Tra", value: "Tự Động" },
-                    { label: "CSDL Cập Nhật", value: "24h" },
+                    { label: "Kiểm Tra", value: "Tự Động" },
+                    { label: "Cập Nhật", value: " mỗi 24h" },
                   ].map((s) => (
                     <div key={s.label} className="flex items-center gap-2">
                       <span
