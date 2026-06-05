@@ -10,18 +10,18 @@
   --bg-base: #030810;
   --bg-surface: #05101e;
   --bg-elevated: #081628;
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-gold: rgba(250, 204, 21, 0.25);
-  --border-green: rgba(52, 211, 153, 0.25);
-  --border-red: rgba(248, 113, 113, 0.25);
-  --text-primary: #e2e8f0;
-  --text-secondary: rgba(148, 163, 184, 0.85);
-  --text-muted: rgba(100, 116, 139, 0.7);
-  --text-gold: #facc15;
-  --text-green: #34d399;
-  --text-red: #f87171;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-gold: rgba(250, 204, 21, 0.3);
+  --border-green: rgba(52, 211, 153, 0.3);
+  --border-red: rgba(248, 113, 113, 0.3);
+  --text-primary: #f8fafc;
+  --text-secondary: rgba(148, 163, 184, 0.95);
+  --text-muted: rgba(100, 116, 139, 0.85);
+  --text-gold: #fef08a;
+  --text-green: #6ee7b7;
+  --text-red: #fca5a5;
   --accent-gold: #facc15;
-  --accent-gold-dim: rgba(250, 204, 21, 0.12);
+  --accent-gold-dim: rgba(250, 204, 21, 0.15);
   --accent-green: #10b981;
   --accent-purple: #818cf8;
 }
@@ -40,7 +40,7 @@ html {
 }
 
 body {
-  background-color: #030810;
+  background-color: #0a0e1a;
   color: #e2e8f0;
   font-family: "Rajdhani", system-ui, sans-serif;
   font-weight: 500;
@@ -106,6 +106,37 @@ select option {
 :focus-visible {
   outline: 2px solid rgba(250, 204, 21, 0.5);
   outline-offset: 2px;
+}
+
+/* ─── Enhanced Input Contrast ────────────────────── */
+input[type="number"],
+input[type="text"],
+textarea {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+  border-color: rgba(100, 116, 139, 0.4) !important;
+  color: #f1f5f9 !important;
+}
+
+input[type="number"]:focus,
+input[type="text"]:focus,
+textarea:focus {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+  border-color: rgba(250, 204, 21, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.1) !important;
+}
+
+/* ─── Button Enhancements ────────────────────────── */
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0px);
 }
 
 /* ═══════════════════════════════════════════════════

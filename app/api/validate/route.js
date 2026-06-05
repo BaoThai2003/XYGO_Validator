@@ -226,7 +226,14 @@ export async function POST(request) {
       );
     }
 
-    const { deckString, archetype, validateAll, teamMembers = [] } = body;
+    const {
+      deckString,
+      archetype,
+      validateAll,
+      teamMembers = [],
+      teamWins = 0,
+      teamLosses = 0,
+    } = body;
 
     // Validate input
     if (!deckString || typeof deckString !== "string" || !deckString.trim()) {
@@ -317,11 +324,17 @@ export async function POST(request) {
       const allResults = {};
       for (const archetypeKey of Object.keys(ARCHETYPE_RULES)) {
         try {
-          const validationResult = validateDeck(archetypeKey, {
-            mainDeck,
-            extraDeck,
-            sideDeck,
-          });
+          const validationResult = validateDeck(
+            archetypeKey,
+            {
+              mainDeck,
+              extraDeck,
+              sideDeck,
+            },
+            parseInt(teamWins) || 0,
+            parseInt(teamLosses) || 0,
+            teamMembers,
+          );
           allResults[archetypeKey] = validationResult;
         } catch (ruleErr) {
           allResults[archetypeKey] = {
@@ -368,11 +381,17 @@ export async function POST(request) {
       // Validate single archetype (original behavior)
       let validationResult;
       try {
-        validationResult = validateDeck(archetype, {
-          mainDeck,
-          extraDeck,
-          sideDeck,
-        });
+        validationResult = validateDeck(
+          archetype,
+          {
+            mainDeck,
+            extraDeck,
+            sideDeck,
+          },
+          parseInt(teamWins) || 0,
+          parseInt(teamLosses) || 0,
+          teamMembers,
+        );
       } catch (ruleErr) {
         return NextResponse.json(
           { error: `Lỗi Rules Engine: ${ruleErr.message}` },

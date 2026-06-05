@@ -149,6 +149,8 @@ export default function Page() {
           deckString: deckString.trim(),
           validateAll: true,
           teamMembers: selectedTeamMembers,
+          teamWins: parseInt(teamWins) || 0,
+          teamLosses: parseInt(teamLosses) || 0,
         }),
       });
       const data = await res.json();
@@ -242,6 +244,7 @@ export default function Page() {
 
     const filterByType = (archetypes) => {
       return archetypes.filter(({ result }) => {
+        // Check if archetype HAS both wins and losses requirements in definition
         if (filterType === "wins") return result.winsRequired > 0;
         if (filterType === "losses") return result.lossesRequired > 0;
         if (filterType === "both")
@@ -265,21 +268,21 @@ export default function Page() {
         className="min-h-screen"
         style={{
           background:
-            "radial-gradient(circle at 50% 50%, rgba(30, 41, 82, 0.8) 0%, rgba(7, 8, 23, 0.95) 100%)",
+            "linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 14, 26, 0.98) 100%)",
           backdropFilter: "blur(20px)",
           backgroundImage: `url('/bg2.jpg')`,
           backgroundSize: "cover",
           backgroundAttachment: "fixed",
-          backgroundBlendMode: "overlay",
+          backgroundBlendMode: "multiply",
         }}
       >
-        <main className="px-6 sm:px-8 lg:px-16 py-12 max-w-7xl mx-auto space-y-8">
-          {/* Logo Section */}
-          <div className="flex items-center justify-center mb-8">
+        <main className="px-6 sm:px-8 lg:px-16 py-8 max-w-7xl mx-auto space-y-8">
+          {/* Logo Section - Top Left Corner */}
+          <div className="mb-4 -mt-2 h-6">
             <img
               src="/logo.jpg"
               alt="YuGiOh Validator Logo"
-              className="h-20 w-auto object-contain"
+              className="h-full w-auto object-contain"
               onError={(e) => {
                 e.target.style.display = "none";
               }}

@@ -100,12 +100,53 @@ export async function lookupCard(passcode) {
  * @returns {CardData}
  */
 function normalizeCard(raw) {
+  const type = raw.type ?? "";
+  const frameType = raw.frameType ?? "";
+  const desc = raw.desc ?? "";
+
+  // Parse cardType (subtype) từ card type string
+  // E.g., "Equip Spell Card" -> ["Equip"]
+  //       "Quick-Play Spell Card" -> ["Quick-Play"]
+  //       "Continuous Trap Card" -> ["Continuous"]
+  const parseCardType = (typeStr) => {
+    const types = [];
+    const typeL = typeStr.toLowerCase();
+
+    // Spell Card subtypes
+    if (typeL.includes("spell")) {
+      if (typeL.includes("equip")) types.push("Equip");
+      if (typeL.includes("field")) types.push("Field");
+      if (typeL.includes("quick-play")) types.push("Quick-Play");
+      if (typeL.includes("ritual")) types.push("Ritual");
+      if (typeL.includes("normal") && !types.length) types.push("Normal");
+    }
+
+    // Trap Card subtypes
+    if (typeL.includes("trap")) {
+      if (typeL.includes("continuous")) types.push("Continuous");
+      if (typeL.includes("counter")) types.push("Counter");
+      if (typeL.includes("normal") && !types.length) types.push("Normal");
+    }
+
+    return types.length > 0 ? types : [];
+  };
+
+  // Detect if card is a Tuner from description text
+  const isTuner =
+    (raw.type ?? "").toLowerCase().includes("tuner") ||
+    (desc.toLowerCase().includes("tuner") &&
+      (desc.toLowerCase().includes("synchro") ||
+        desc.toLowerCase().includes("synchron")));
+
+  const cardTypeArray = parseCardType(type);
+
   return {
     id: raw.id,
     name: raw.name,
-    type: raw.type ?? "", // "Effect Monster", "Spell Card", "Trap Card", etc.
-    frameType: raw.frameType ?? "", // "effect", "xyz", "pendulum", "spell", "trap"...
-    desc: raw.desc ?? "",
+    type: type, // "Effect Monster", "Spell Card", "Trap Card", etc.
+    frameType: frameType, // "effect", "xyz", "pendulum", "spell", "trap"...
+    cardType: cardTypeArray, // ["Equip"], ["Quick-Play"], ["Continuous"], etc.
+    desc: desc,
     race: raw.race ?? "", // Monster Type: "Warrior", "Spellcaster", "Thunder"...
     attribute: raw.attribute ?? "", // "DARK", "LIGHT", "FIRE", "WATER", "EARTH", "WIND", "DIVINE"
     level: raw.level ?? raw.rank ?? raw.linkval ?? 0,
@@ -115,17 +156,18 @@ function normalizeCard(raw) {
     linkval: raw.linkval ?? null,
     archetype: raw.archetype ?? "",
     // Derived helpers (tính sẵn để Rules Engine dùng nhanh)
-    isMonster: (raw.type ?? "").toLowerCase().includes("monster"),
-    isSpell: (raw.type ?? "").toLowerCase().includes("spell"),
-    isTrap: (raw.type ?? "").toLowerCase().includes("trap"),
-    isXyz: (raw.frameType ?? "").toLowerCase().includes("xyz"),
-    isSynchro: (raw.frameType ?? "").toLowerCase().includes("synchro"),
-    isFusion: (raw.frameType ?? "").toLowerCase().includes("fusion"),
-    isLink: (raw.frameType ?? "").toLowerCase().includes("link"),
-    isPendulum: (raw.frameType ?? "").toLowerCase().includes("pendulum"),
-    isRitual: (raw.frameType ?? "").toLowerCase() === "ritual",
+    isMonster: type.toLowerCase().includes("monster"),
+    isSpell: type.toLowerCase().includes("spell"),
+    isTrap: type.toLowerCase().includes("trap"),
+    isXyz: frameType.toLowerCase().includes("xyz"),
+    isSynchro: frameType.toLowerCase().includes("synchro"),
+    isFusion: frameType.toLowerCase().includes("fusion"),
+    isLink: frameType.toLowerCase().includes("link"),
+    isPendulum: frameType.toLowerCase().includes("pendulum"),
+    isRitual: frameType.toLowerCase() === "ritual",
+    isTuner: isTuner,
     isExtraDeck: ["xyz", "synchro", "fusion", "link"].some((t) =>
-      (raw.frameType ?? "").toLowerCase().includes(t),
+      frameType.toLowerCase().includes(t),
     ),
   };
 }
@@ -136,6 +178,7 @@ function normalizeCard(raw) {
  * @property {string}  name
  * @property {string}  type
  * @property {string}  frameType
+ * @property {string[]} cardType - Subtype array ["Equip", "Quick-Play", "Continuous", etc.]
  * @property {string}  desc
  * @property {string}  race
  * @property {string}  attribute
@@ -154,5 +197,6 @@ function normalizeCard(raw) {
  * @property {boolean} isLink
  * @property {boolean} isPendulum
  * @property {boolean} isRitual
+ * @property {boolean} isTuner
  * @property {boolean} isExtraDeck
  */

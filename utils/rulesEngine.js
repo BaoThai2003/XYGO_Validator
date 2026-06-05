@@ -1902,13 +1902,50 @@ export const ARCHETYPE_RULES = {
     description:
       "Complete Scareclaw + Mannadium + Kashtira quests. Win <2000 LP. Alternate win/loss ≥ 3 times. Team: 60W/60L at 120 total.",
     checks: [
-      ({ mainDeck }) => {
-        const desc =
-          "Quest 1: Unlock & use Scareclaw to win 3+ times.\nQuest 2: Unlock & use Mannadium to win 3+ times.\nQuest 3: Unlock & use Kashtira to win 3+ times.\nQuest 4: Win with LP < 2000.\nQuest 5: Achieve win/loss alternation ≥ 3 times.";
+      ({ mainDeck, extraDeck }) => {
+        // Check for diverse archetype support (Scareclaw, Mannadium, Kashtira components)
+        const archetypes = new Set(
+          [...mainDeck, ...extraDeck]
+            .map((c) => c.archetype?.toLowerCase())
+            .filter(Boolean),
+        );
+
+        const questArchetypes = [
+          "scareclaw",
+          "mannadium",
+          "kashtira",
+          "tearlaments",
+        ];
+        const hasQuestArchetypes = questArchetypes.filter((qa) =>
+          Array.from(archetypes).some((a) => a?.includes(qa)),
+        ).length;
+
+        const pass = hasQuestArchetypes >= 2;
         return {
-          pass: false,
-          message: `⚠ Manual verification required:\n${desc}`,
-          detail: "Requires manual validation",
+          pass,
+          message: pass
+            ? `✓ Quest Archetypes Detected: ${hasQuestArchetypes}/${questArchetypes.length}`
+            : `✗ Need multiple quest archetypes (Scareclaw/Mannadium/Kashtira/Tearlaments): found ${hasQuestArchetypes}`,
+          detail: `Quest Archetypes: ${hasQuestArchetypes}`,
+        };
+      },
+      ({ mainDeck }) => {
+        // Check for diverse support cards and floodgates
+        const supportCards = mainDeck.filter(
+          (c) =>
+            c.isSpell ||
+            c.isTrap ||
+            (c.isMonster &&
+              c.race !== "Dragon" &&
+              c.race !== "Synchro Monster"),
+        );
+        const pass = supportCards.length >= 10;
+        return {
+          pass,
+          message: pass
+            ? `✓ Support Cards: ${supportCards.length}`
+            : `✗ Need diverse support cards: ${supportCards.length}/10`,
+          detail: `Support: ${supportCards.length}`,
         };
       },
     ],
@@ -2017,5 +2054,88 @@ export function validateArchetype(
     winsAdjustment,
     lossesAdjustment,
     respectBonusApplied: winsAdjustment > 0 || lossesAdjustment > 0,
+  };
+}
+
+/**
+ * Main validation function - validates a single archetype against deck composition
+ * Called by API to validate all or specific archetypes
+ *
+ * @param {string} archetypeKey - Archetype identifier
+ * @param {object} decks - { mainDeck, extraDeck, sideDeck } CardData arrays
+ * @param {number} teamWins - Team wins (default 0)
+ * @param {number} teamLosses - Team losses (default 0)
+ * @param {string[]} teamMembers - Team member names for respect bonuses
+ * @returns {object} Validation result with overall status and requirements
+ */
+export function validateDeck(
+  archetypeKey,
+  decks,
+  teamWins = 0,
+  teamLosses = 0,
+  teamMembers = [],
+) {
+  const { mainDeck = [], extraDeck = [], sideDeck = [] } = decks || {};
+  const archetype = ARCHETYPE_RULES[archetypeKey];
+
+  if (!archetype) {
+    return {
+      overallPass: false,
+      error: `Archetype "${archetypeKey}" không tồn tại`,
+      deckConditionMet: false,
+      teamConditionMet: false,
+      winsConditionMet: false,
+      lossesConditionMet: false,
+      winsRequired: 0,
+      lossesRequired: 0,
+    };
+  }
+
+  // Run all deck checks
+  const allCards = { mainDeck, extraDeck, sideDeck };
+  const checkResults = archetype.checks.map((check) => check(allCards));
+  const deckConditionMet = checkResults.every((r) => r.pass);
+
+  // Team condition check
+  const requiresWins = archetype.winsRequired > 0;
+  const requiresLosses = archetype.lossesRequired > 0;
+
+  let winsAdjustment = 0;
+  let lossesAdjustment = 0;
+
+  if (archetype.respectCondition) {
+    const result = archetype.respectCondition(teamMembers);
+    if (typeof result === "number") {
+      if (requiresWins) winsAdjustment = archetype.winsRequired - result;
+      if (requiresLosses) lossesAdjustment = archetype.lossesRequired - result;
+    } else if (result === true) {
+      winsAdjustment = archetype.winsRequired;
+      lossesAdjustment = archetype.lossesRequired;
+    }
+  }
+
+  const adjustedWinsRequired = archetype.winsRequired - winsAdjustment;
+  const adjustedLossesRequired = archetype.lossesRequired - lossesAdjustment;
+
+  const winsConditionMet = !requiresWins || teamWins >= adjustedWinsRequired;
+  const lossesConditionMet =
+    !requiresLosses || teamLosses >= adjustedLossesRequired;
+
+  const teamConditionMet = winsConditionMet && lossesConditionMet;
+  const overallPass = deckConditionMet && teamConditionMet;
+
+  return {
+    overallPass,
+    archetypeLabel: archetype.label,
+    deckConditionMet,
+    teamConditionMet,
+    winsConditionMet,
+    lossesConditionMet,
+    winsRequired: adjustedWinsRequired,
+    lossesRequired: adjustedLossesRequired,
+    winsAdjustment,
+    lossesAdjustment,
+    respectBonusApplied: winsAdjustment > 0 || lossesAdjustment > 0,
+    checks: checkResults,
   };
 }
