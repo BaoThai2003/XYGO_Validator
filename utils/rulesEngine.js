@@ -1903,49 +1903,56 @@ export const ARCHETYPE_RULES = {
       "Complete Scareclaw + Mannadium + Kashtira quests. Win <2000 LP. Alternate win/loss ≥ 3 times. Team: 60W/60L at 120 total.",
     checks: [
       ({ mainDeck, extraDeck }) => {
-        // Check for diverse archetype support (Scareclaw, Mannadium, Kashtira components)
-        const archetypes = new Set(
-          [...mainDeck, ...extraDeck]
-            .map((c) => c.archetype?.toLowerCase())
-            .filter(Boolean),
+        // Check for Tearlaments core cards: cards with archetype "Tearlaments" OR
+        // Aqua/Warrior monsters (common Tearlaments monster types) with GY effects
+        const allCards = [...mainDeck, ...extraDeck];
+        const tearlamentCards = allCards.filter(
+          (c) =>
+            c.archetype?.toLowerCase().includes("tearlament") ||
+            c.name?.toLowerCase().includes("tearlament"),
         );
-
-        const questArchetypes = [
-          "scareclaw",
-          "mannadium",
-          "kashtira",
-          "tearlaments",
-        ];
-        const hasQuestArchetypes = questArchetypes.filter((qa) =>
-          Array.from(archetypes).some((a) => a?.includes(qa)),
-        ).length;
-
-        const pass = hasQuestArchetypes >= 2;
+        const count = tearlamentCards.length;
+        const required = 5;
         return {
-          pass,
-          message: pass
-            ? `✓ Quest Archetypes Detected: ${hasQuestArchetypes}/${questArchetypes.length}`
-            : `✗ Need multiple quest archetypes (Scareclaw/Mannadium/Kashtira/Tearlaments): found ${hasQuestArchetypes}`,
-          detail: `Quest Archetypes: ${hasQuestArchetypes}`,
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Tearlaments Cards: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Tearlaments Cards không đủ: ${count}/${required} lá. Deck cần chứa các lá Tearlaments chính.`,
+          detail: `Tearlaments: ${count}`,
+        };
+      },
+      ({ mainDeck, extraDeck }) => {
+        // Check for Fusion monsters in Extra Deck (Tearlaments mechanic)
+        const fusions = extraDeck.filter((c) => c.isFusion);
+        const count = fusions.length;
+        const required = 3;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Fusion (Extra): ${count} (yêu cầu ≥ ${required})`
+              : `✗ Fusion không đủ: ${count}/${required} lá.`,
+          detail: `Fusion: ${count}`,
         };
       },
       ({ mainDeck }) => {
-        // Check for diverse support cards and floodgates
-        const supportCards = mainDeck.filter(
+        // Check for WATER monsters or GY mill effects
+        const waterOrAqua = mainDeck.filter(
           (c) =>
-            c.isSpell ||
-            c.isTrap ||
-            (c.isMonster &&
-              c.race !== "Dragon" &&
-              c.race !== "Synchro Monster"),
+            (c.isMonster && c.attribute === "WATER") ||
+            c.desc?.toLowerCase().includes("send") ||
+            c.desc?.toLowerCase().includes("mill"),
         );
-        const pass = supportCards.length >= 10;
+        const count = waterOrAqua.length;
+        const required = 8;
         return {
-          pass,
-          message: pass
-            ? `✓ Support Cards: ${supportCards.length}`
-            : `✗ Need diverse support cards: ${supportCards.length}/10`,
-          detail: `Support: ${supportCards.length}`,
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ WATER/Mill: ${count}`
+              : `✗ WATER/Mill không đủ: ${count}/${required}.`,
+          detail: `WATER/Mill: ${count}`,
         };
       },
     ],
@@ -2032,8 +2039,9 @@ export function validateArchetype(
     }
   }
 
-  const adjustedWinsRequired = archetype.winsRequired - winsAdjustment;
-  const adjustedLossesRequired = archetype.lossesRequired - lossesAdjustment;
+  const adjustedWinsRequired = (archetype.winsRequired || 0) - winsAdjustment;
+  const adjustedLossesRequired =
+    (archetype.lossesRequired || 0) - lossesAdjustment;
 
   const winsPasses = !requiresWins || teamWins >= adjustedWinsRequired;
   const lossesPasses = !requiresLosses || teamLosses >= adjustedLossesRequired;
@@ -2114,8 +2122,9 @@ export function validateDeck(
     }
   }
 
-  const adjustedWinsRequired = archetype.winsRequired - winsAdjustment;
-  const adjustedLossesRequired = archetype.lossesRequired - lossesAdjustment;
+  const adjustedWinsRequired = (archetype.winsRequired || 0) - winsAdjustment;
+  const adjustedLossesRequired =
+    (archetype.lossesRequired || 0) - lossesAdjustment;
 
   const winsConditionMet = !requiresWins || teamWins >= adjustedWinsRequired;
   const lossesConditionMet =

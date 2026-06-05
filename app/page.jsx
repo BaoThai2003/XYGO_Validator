@@ -231,10 +231,11 @@ export default function Page() {
 
   const filterArchetypeResults = () => {
     if (!results) return { passed: [], failed: [] };
-    const passedArchetypes = Object.entries(results.results || {})
+    const allEntries = Object.entries(results.results || {});
+    const passedArchetypes = allEntries
       .filter(([_, result]) => result.overallPass)
       .map(([key, result]) => ({ key, result }));
-    const failedArchetypes = Object.entries(results.results || {})
+    const failedArchetypes = allEntries
       .filter(([_, result]) => !result.overallPass)
       .map(([key, result]) => ({ key, result }));
 
@@ -242,13 +243,18 @@ export default function Page() {
       return { passed: passedArchetypes, failed: failedArchetypes };
     }
 
+    // Use the raw winsRequired / lossesRequired from the result
+    // These come from validateDeck which now returns (archetype.winsRequired || 0) values
+    // An archetype with ONLY winsRequired will have lossesRequired === 0 (after NaN fix)
+    // An archetype with ONLY lossesRequired will have winsRequired === 0
+    // An archetype with BOTH will have both > 0
     const filterByType = (archetypes) => {
       return archetypes.filter(({ result }) => {
-        // Check if archetype HAS both wins and losses requirements in definition
-        if (filterType === "wins") return result.winsRequired > 0;
-        if (filterType === "losses") return result.lossesRequired > 0;
-        if (filterType === "both")
-          return result.winsRequired > 0 && result.lossesRequired > 0;
+        const hasWins = (result.winsRequired ?? 0) > 0;
+        const hasLosses = (result.lossesRequired ?? 0) > 0;
+        if (filterType === "wins") return hasWins && !hasLosses;
+        if (filterType === "losses") return hasLosses && !hasWins;
+        if (filterType === "both") return hasWins && hasLosses;
         return true;
       });
     };
@@ -268,21 +274,23 @@ export default function Page() {
         className="min-h-screen"
         style={{
           background:
-            "linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 14, 26, 0.98) 100%)",
-          backdropFilter: "blur(20px)",
-          backgroundImage: `url('/bg2.jpg')`,
-          backgroundSize: "cover",
-          backgroundAttachment: "fixed",
-          backgroundBlendMode: "multiply",
+            "linear-gradient(160deg, #030810 0%, #050d1a 40%, #0a0e1a 100%)",
+          minHeight: "100vh",
         }}
       >
         <main className="px-6 sm:px-8 lg:px-16 py-8 max-w-7xl mx-auto space-y-8">
           {/* Logo Section - Top Left Corner */}
-          <div className="mb-4 -mt-2 h-6">
+          <div style={{ marginBottom: "12px", marginTop: "-4px" }}>
             <img
               src="/logo.jpg"
               alt="YuGiOh Validator Logo"
-              className="h-full w-auto object-contain"
+              style={{
+                height: "48px",
+                width: "auto",
+                maxWidth: "160px",
+                objectFit: "contain",
+                display: "block",
+              }}
               onError={(e) => {
                 e.target.style.display = "none";
               }}
@@ -341,9 +349,9 @@ export default function Page() {
                         onChange={(e) => field.setter(e.target.value)}
                         className="w-full px-6 py-4 rounded-xl text-base focus:outline-none"
                         style={{
-                          background: "rgba(255,255,255,0.03)",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          color: "#e2e8f0",
+                          background: "rgba(2, 8, 22, 0.85)",
+                          border: "1px solid rgba(100,116,139,0.4)",
+                          color: "#f1f5f9",
                         }}
                         placeholder="0"
                       />
@@ -592,9 +600,9 @@ export default function Page() {
                     rows={12}
                     spellCheck={false}
                     style={{
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      color: "#e2e8f0",
+                      background: "rgba(2, 8, 22, 0.85)",
+                      border: "1px solid rgba(100,116,139,0.4)",
+                      color: "#f1f5f9",
                     }}
                   />
 
@@ -784,22 +792,40 @@ export default function Page() {
                         <h4
                           style={{
                             color: "#6ee7b7",
-                            fontSize: "18px",
+                            fontSize: "16px",
                             fontWeight: 700,
-                            marginBottom: "12px",
+                            marginBottom: "10px",
                           }}
                         >
-                          {key}
+                          {result.archetypeLabel || key}
                         </h4>
                         <div
                           style={{
-                            fontSize: "13px",
-                            color: "rgba(148,163,184,0.8)",
-                            lineHeight: 1.6,
+                            fontSize: "12px",
+                            lineHeight: 1.7,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "3px",
                           }}
                         >
-                          <p>✓ Đủ Điều Kiện Deck</p>
-                          <p>✓ Đủ Điều Kiện Đội</p>
+                          <span style={{ color: "#6ee7b7" }}>
+                            ✓ Deck: Đủ điều kiện
+                          </span>
+                          {(result.winsRequired ?? 0) > 0 && (
+                            <span style={{ color: "#6ee7b7" }}>
+                              ✓ Wins: {result.winsRequired}+ đạt
+                            </span>
+                          )}
+                          {(result.lossesRequired ?? 0) > 0 && (
+                            <span style={{ color: "#6ee7b7" }}>
+                              ✓ Losses: {result.lossesRequired}+ đạt
+                            </span>
+                          )}
+                          {result.respectBonusApplied && (
+                            <span style={{ color: "#facc15" }}>
+                              ⭐ Respect Bonus applied
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -817,34 +843,71 @@ export default function Page() {
                     ✗ {i18n.ineligibleArchetypes} ({failedArchetypes.length})
                   </h3>
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {failedArchetypes.map(({ key }) => (
+                    {failedArchetypes.map(({ key, result }) => (
                       <div
                         key={key}
-                        className="rounded-xl p-6"
+                        className="rounded-xl p-5"
                         style={{
                           background:
-                            "linear-gradient(135deg, rgba(107,114,128,0.1) 0%, rgba(107,114,128,0.05) 100%)",
-                          border: "1px solid rgba(107,114,128,0.2)",
+                            "linear-gradient(135deg, rgba(30,30,40,0.95) 0%, rgba(20,20,32,0.98) 100%)",
+                          border: "1px solid rgba(107,114,128,0.3)",
                         }}
                       >
                         <h4
                           style={{
-                            color: "rgba(209,213,219,0.7)",
-                            fontSize: "18px",
+                            color: "rgba(209,213,219,0.9)",
+                            fontSize: "16px",
                             fontWeight: 700,
-                            marginBottom: "12px",
+                            marginBottom: "10px",
                           }}
                         >
-                          {key}
+                          {result.archetypeLabel || key}
                         </h4>
                         <div
                           style={{
-                            fontSize: "13px",
-                            color: "rgba(148,163,184,0.7)",
-                            lineHeight: 1.6,
+                            fontSize: "12px",
+                            lineHeight: 1.7,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "3px",
                           }}
                         >
-                          <p>✗ Điều kiện không đủ</p>
+                          <span
+                            style={{
+                              color: result.deckConditionMet
+                                ? "#6ee7b7"
+                                : "#fca5a5",
+                            }}
+                          >
+                            {result.deckConditionMet ? "✓" : "✗"} Deck:{" "}
+                            {result.deckConditionMet
+                              ? "Đủ điều kiện"
+                              : "Không đủ yêu cầu"}
+                          </span>
+                          {(result.winsRequired ?? 0) > 0 && (
+                            <span
+                              style={{
+                                color: result.winsConditionMet
+                                  ? "#6ee7b7"
+                                  : "#fca5a5",
+                              }}
+                            >
+                              {result.winsConditionMet ? "✓" : "✗"} Wins:{" "}
+                              {result.winsRequired} yêu cầu
+                            </span>
+                          )}
+                          {(result.lossesRequired ?? 0) > 0 && (
+                            <span
+                              style={{
+                                color: result.lossesConditionMet
+                                  ? "#6ee7b7"
+                                  : "#fca5a5",
+                              }}
+                            >
+                              {result.lossesConditionMet ? "✓" : "✗"} Losses:{" "}
+                              {result.lossesRequired} yêu cầu
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
