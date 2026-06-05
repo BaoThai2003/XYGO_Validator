@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server";
 import { getCardDatabase } from "@/utils/ygoprodeck";
 import { validateDeck, ARCHETYPE_RULES } from "@/utils/rulesEngine";
+import { validateDeckBanlist } from "@/utils/banlist";
 
 // ─── YDKE Parser ──────────────────────────────────────────────────────────────
 
@@ -225,7 +226,7 @@ export async function POST(request) {
       );
     }
 
-    const { deckString, archetype, validateAll } = body;
+    const { deckString, archetype, validateAll, teamMembers = [] } = body;
 
     // Validate input
     if (!deckString || typeof deckString !== "string" || !deckString.trim()) {
@@ -331,10 +332,22 @@ export async function POST(request) {
       }
 
       // 5. Build response for validateAll
+      const banlistValidation = validateDeckBanlist(
+        mainDeck,
+        extraDeck,
+        sideDeck,
+      );
+
       return NextResponse.json({
         success: true,
         validateAll: true,
         results: allResults,
+        deck: {
+          main: mainDeck,
+          extra: extraDeck,
+          side: sideDeck,
+        },
+        banlistValidation,
         deckStats: {
           mainCount: mainDeck.length,
           extraCount: extraDeck.length,
@@ -368,10 +381,22 @@ export async function POST(request) {
       }
 
       // 5. Build response for single archetype
+      const banlistValidation = validateDeckBanlist(
+        mainDeck,
+        extraDeck,
+        sideDeck,
+      );
+
       return NextResponse.json({
         success: true,
         archetype,
         ...validationResult,
+        deck: {
+          main: mainDeck,
+          extra: extraDeck,
+          side: sideDeck,
+        },
+        banlistValidation,
         deckStats: {
           mainCount: mainDeck.length,
           extraCount: extraDeck.length,

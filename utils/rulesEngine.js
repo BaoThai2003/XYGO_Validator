@@ -1,223 +1,33 @@
 /**
- * utils/rulesEngine.js
+ * utils/rulesEngine-full.js
  * ─────────────────────────────────────────────────────────────────────────────
- * Rules Engine cho Yu-Gi-Oh! Tournament Deck Validator.
+ * Complete Rules Engine — Yu-Gi-Oh! Tournament Deck Validator
+ * All 50 Archetypes with Scaling Conditions
  *
- * CÁCH THÊM ARCHETYPE MỚI:
- *  1. Tạo một object mới trong `ARCHETYPE_RULES` với key là tên archetype.
- *  2. Điền `label` (tên hiển thị), `description` (mô tả ngắn).
- *  3. Viết mảng `checks` gồm các hàm kiểm tra.
- *     Mỗi check nhận vào `{ mainDeck, extraDeck, sideDeck }` (mảng CardData)
- *     và trả về `{ pass: boolean, message: string }`.
- *
- * HELPER FUNCTIONS ở cuối file giúp viết rule nhanh hơn.
+ * STRUCTURE:
+ * - winsRequired: Trận thắng cần thiết (10/20/30/40/50 wins)
+ * - lossesRequired: Trận thua cần thiết (20/30/40/50/60/100 losses)
+ * - deckCondition: Checks để xác thực deck configuration
+ * - teamCondition: Checks để xác thực team performance
+ * - respectCondition: Special bonuses từ team members
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-// ─── Archetype Registry ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// ARCHETYPE REGISTRY — 50 ARCHETYPES
+// ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Map tên archetype → cấu hình rule.
- * Key phải khớp với value trong dropdown ở UI.
- */
 export const ARCHETYPE_RULES = {
-  // ══════════════════════════════════════════════════════════════════════════
-  // M∀LICE — Kiểm tra Attribute và tổng số bài
-  // ══════════════════════════════════════════════════════════════════════════
-  MALICE: {
-    label: "M∀LICE",
-    description: "Main Deck ≥ 25 DARK Monster & Main Deck ≥ 45 card tổng cộng.",
-    checks: [
-      /**
-       * Điều kiện 1: Main Deck phải có ít nhất 25 DARK Monster.
-       */
-      ({ mainDeck }) => {
-        const darkMonsters = mainDeck.filter(
-          (c) => c.isMonster && c.attribute === "DARK",
-        );
-        const count = darkMonsters.length;
-        const required = 25;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ DARK Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ DARK Monster không đủ: chỉ có ${count}/${required} lá.`,
-          detail: `DARK Monster: ${count} lá`,
-        };
-      },
-
-      /**
-       * Điều kiện 2: Main Deck tổng cộng ≥ 45 card.
-       */
-      ({ mainDeck }) => {
-        const count = mainDeck.length;
-        const required = 45;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Tổng Main Deck: ${count} lá (yêu cầu ≥ ${required})`
-              : `✗ Main Deck chỉ có ${count}/${required} lá.`,
-          detail: `Tổng Main Deck: ${count} lá`,
-        };
-      },
-    ],
-  },
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // Ryzeal — Kiểm tra Type và Extra Deck
-  // ══════════════════════════════════════════════════════════════════════════
-  RYZEAL: {
-    label: "Ryzeal",
-    description:
-      "Main Deck: ≥ 10 LIGHT Monster HOẶC ≥ 10 Thunder Monster. Extra Deck: ≥ 7 Xyz Monster.",
-    checks: [
-      /**
-       * Điều kiện 1 (OR): Main Deck ≥ 10 LIGHT Monster HOẶC ≥ 10 Thunder Monster.
-       * Chỉ cần một trong hai thỏa mãn là PASS.
-       */
-      ({ mainDeck }) => {
-        const lightMonsters = mainDeck.filter(
-          (c) => c.isMonster && c.attribute === "LIGHT",
-        );
-        const thunderMonsters = mainDeck.filter(
-          (c) => c.isMonster && c.race === "Thunder",
-        );
-        const lightCount = lightMonsters.length;
-        const thunderCount = thunderMonsters.length;
-        const required = 10;
-
-        const passLight = lightCount >= required;
-        const passThunder = thunderCount >= required;
-        const pass = passLight || passThunder;
-
-        let message;
-        if (pass) {
-          const parts = [];
-          if (passLight) parts.push(`LIGHT Monster: ${lightCount}`);
-          if (passThunder) parts.push(`Thunder Monster: ${thunderCount}`);
-          message = `✓ Đủ điều kiện OR: ${parts.join(" / ")} (yêu cầu ≥ ${required} một trong hai)`;
-        } else {
-          message =
-            `✗ Không đủ điều kiện: LIGHT Monster = ${lightCount}, Thunder Monster = ${thunderCount} ` +
-            `(cần ít nhất một loại ≥ ${required}).`;
-        }
-
-        return {
-          pass,
-          message,
-          detail: `LIGHT: ${lightCount} | Thunder: ${thunderCount}`,
-        };
-      },
-
-      /**
-       * Điều kiện 2: Extra Deck ≥ 7 Xyz Monster.
-       */
-      ({ extraDeck }) => {
-        const xyzMonsters = extraDeck.filter((c) => c.isXyz);
-        const count = xyzMonsters.length;
-        const required = 7;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Xyz Monster trong Extra Deck: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Extra Deck chỉ có ${count}/${required} Xyz Monster.`,
-          detail: `Xyz Extra Deck: ${count} lá`,
-        };
-      },
-    ],
-  },
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // Artmage — Kiểm tra Attribute đa dạng + Pendulum + Spell
-  // ══════════════════════════════════════════════════════════════════════════
-  ARTMAGE: {
-    label: "Artmage",
-    description:
-      "Main Deck: ≥ 3 Attribute khác nhau (bắt buộc LIGHT & DARK) + ≥ 10 Pendulum Monster + ≥ 10 Spell Card.",
-    checks: [
-      /**
-       * Điều kiện 1: Main Deck có ít nhất 3 Attribute khác nhau,
-       * trong đó bắt buộc phải có LIGHT và DARK.
-       */
-      ({ mainDeck }) => {
-        const monsters = mainDeck.filter((c) => c.isMonster);
-        const attributes = new Set(
-          monsters.map((c) => c.attribute).filter(Boolean),
-        );
-
-        const hasLight = attributes.has("LIGHT");
-        const hasDark = attributes.has("DARK");
-        const attrCount = attributes.size;
-        const required = 3;
-
-        const pass = attrCount >= required && hasLight && hasDark;
-
-        let message;
-        if (!hasLight && !hasDark) {
-          message = `✗ Thiếu cả LIGHT lẫn DARK Attribute trong Monster.`;
-        } else if (!hasLight) {
-          message = `✗ Thiếu LIGHT Attribute. Hiện có: ${[...attributes].join(", ")}.`;
-        } else if (!hasDark) {
-          message = `✗ Thiếu DARK Attribute. Hiện có: ${[...attributes].join(", ")}.`;
-        } else if (attrCount < required) {
-          message = `✗ Chỉ có ${attrCount}/${required} Attribute khác nhau: ${[...attributes].join(", ")}.`;
-        } else {
-          message = `✓ Attribute đa dạng: ${[...attributes].join(", ")} (${attrCount} loại, có LIGHT & DARK)`;
-        }
-
-        return {
-          pass,
-          message,
-          detail: `Attributes: ${[...attributes].join(", ")}`,
-        };
-      },
-
-      /**
-       * Điều kiện 2: Main Deck ≥ 10 Pendulum Monster.
-       */
-      ({ mainDeck }) => {
-        const pendulums = mainDeck.filter((c) => c.isPendulum && c.isMonster);
-        const count = pendulums.length;
-        const required = 10;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Pendulum Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Pendulum Monster không đủ: ${count}/${required} lá.`,
-          detail: `Pendulum Monster: ${count} lá`,
-        };
-      },
-
-      /**
-       * Điều kiện 3: Main Deck ≥ 10 Spell Card.
-       */
-      ({ mainDeck }) => {
-        const spells = mainDeck.filter((c) => c.isSpell);
-        const count = spells.length;
-        const required = 10;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Spell Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Spell Card không đủ: ${count}/${required} lá.`,
-          detail: `Spell Card: ${count} lá`,
-        };
-      },
-    ],
-  },
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // 10 WINS REQUIREMENT
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE 10 WINS (2 Archetypes)
+  // ═════════════════════════════════════════════════════════════════════════
 
   MIKANKO: {
     label: "Mikanko",
-    description: "Main Deck: ≥ 6 Monster + ≥ 3 Equip Spell.",
+    winsRequired: 10,
+    teamCondition: 10,
+    description:
+      "Main Deck: ≥ 6 Monster + ≥ 3 Equip Spell. Team: ≥ 10/180 wins.",
     checks: [
       ({ mainDeck }) => {
         const monsters = mainDeck.filter((c) => c.isMonster);
@@ -248,11 +58,18 @@ export const ARCHETYPE_RULES = {
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu trong đội có Yuki Chan thì mở khóa tất cả
+      return teamMembers.includes("Yuki Chan");
+    },
   },
 
   TRAPTRIX: {
     label: "Traptrix",
-    description: "Main Deck: ≥ 10 Trap + ≥ 10 Insect/Plant Monster.",
+    winsRequired: 10,
+    teamCondition: 10,
+    description:
+      "Main Deck: ≥ 10 Trap + ≥ 10 Insect/Plant Monster. Team: ≥ 10/180 wins.",
     checks: [
       ({ mainDeck }) => {
         const traps = mainDeck.filter((c) => c.isTrap);
@@ -278,21 +95,27 @@ export const ARCHETYPE_RULES = {
           message:
             count >= required
               ? `✓ Insect/Plant Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Insect/Plant Monster không đủ: ${count}/${required} lá.`,
+              : `✗ Insect/Plant không đủ: ${count}/${required} lá.`,
           detail: `Insect/Plant: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu trong đội có Nguyễn Nguyên thì mở khóa tất cả
+      return teamMembers.includes("Nguyễn Nguyên");
+    },
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // 20 WINS REQUIREMENT
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE 20 WINS (5 Archetypes)
+  // ═════════════════════════════════════════════════════════════════════════
 
   CHIMERA: {
     label: "Chimera (Illusion)",
+    winsRequired: 20,
+    teamCondition: 20,
     description:
-      "Main Deck: ≥ 2 Attribute + ≥ 2 Monster Type (Illusion/Beast/Fiend).",
+      "Main Deck: ≥ 2 Attribute + ≥ 2 Type (Illusion/Beast/Fiend). Team: ≥ 20/180 wins.",
     checks: [
       ({ mainDeck }) => {
         const monsters = mainDeck.filter((c) => c.isMonster);
@@ -307,7 +130,7 @@ export const ARCHETYPE_RULES = {
             count >= required
               ? `✓ Attribute: ${count} loại (yêu cầu ≥ ${required})`
               : `✗ Attribute không đủ: ${count}/${required} loại.`,
-          detail: `Attribute: ${count}`,
+          detail: `Attributes: ${count}`,
         };
       },
       ({ mainDeck }) => {
@@ -323,225 +146,84 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Monster Type (Illusion/Beast/Fiend): ${count} loại (yêu cầu ≥ ${required})`
+              ? `✓ Monster Type (Illusion/Beast/Fiend): ${count} loại`
               : `✗ Type không đủ: ${count}/${required} loại.`,
-          detail: `Type: ${count}`,
+          detail: `Types: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu trong đội có Khai Điện thì chỉ cần 15 wins
+      return teamMembers.includes("Khai Điện") ? 15 : 20;
+    },
   },
 
   DDD: {
     label: "D/D/D",
-    description: "Extra Deck: ≥ 1 Link, ≥ 1 Fusion, ≥ 1 Synchro, ≥ 1 Xyz.",
+    winsRequired: 20,
+    teamCondition: 20,
+    description:
+      "Extra Deck: ≥ 1 Link + ≥ 1 Fusion + ≥ 1 Synchro + ≥ 1 Xyz. Team: ≥ 20/180 wins.",
     checks: [
       ({ extraDeck }) => {
         const links = extraDeck.filter((c) => c.isLink);
-        return {
-          pass: links.length >= 1,
-          message:
-            links.length >= 1
-              ? `✓ Link Monster: ${links.length}`
-              : `✗ Link Monster không đủ.`,
-          detail: `Link: ${links.length}`,
-        };
-      },
-      ({ extraDeck }) => {
         const fusions = extraDeck.filter((c) => c.isFusion);
-        return {
-          pass: fusions.length >= 1,
-          message:
-            fusions.length >= 1
-              ? `✓ Fusion Monster: ${fusions.length}`
-              : `✗ Fusion Monster không đủ.`,
-          detail: `Fusion: ${fusions.length}`,
-        };
-      },
-      ({ extraDeck }) => {
         const synchos = extraDeck.filter((c) => c.isSynchro);
-        return {
-          pass: synchos.length >= 1,
-          message:
-            synchos.length >= 1
-              ? `✓ Synchro Monster: ${synchos.length}`
-              : `✗ Synchro Monster không đủ.`,
-          detail: `Synchro: ${synchos.length}`,
-        };
-      },
-      ({ extraDeck }) => {
         const xyzs = extraDeck.filter((c) => c.isXyz);
+        const pass =
+          links.length >= 1 &&
+          fusions.length >= 1 &&
+          synchos.length >= 1 &&
+          xyzs.length >= 1;
         return {
-          pass: xyzs.length >= 1,
-          message:
-            xyzs.length >= 1
-              ? `✓ Xyz Monster: ${xyzs.length}`
-              : `✗ Xyz Monster không đủ.`,
-          detail: `Xyz: ${xyzs.length}`,
+          pass,
+          message: pass
+            ? `✓ Extra Deck types: Link=${links.length} Fusion=${fusions.length} Synchro=${synchos.length} Xyz=${xyzs.length}`
+            : `✗ Extra Deck không đủ: Link=${links.length} Fusion=${fusions.length} Synchro=${synchos.length} Xyz=${xyzs.length}.`,
+          detail: `Link:${links.length} Fus:${fusions.length} Syn:${synchos.length} Xyz:${xyzs.length}`,
         };
       },
     ],
-  },
-
-  ARCANA_FORCE: {
-    label: "Arcana Force",
-    description:
-      "Main Deck: ≥ 5 Fairy Monster + ≥ 1 lá bài có hiệu ứng Coin toss.",
-    checks: [
-      ({ mainDeck }) => {
-        const fairies = mainDeck.filter(
-          (c) => c.isMonster && c.race === "Fairy",
-        );
-        const count = fairies.length;
-        const required = 5;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Fairy Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Fairy Monster không đủ: ${count}/${required} lá.`,
-          detail: `Fairy: ${count}`,
-        };
-      },
-      ({ mainDeck }) => {
-        const coinToss = mainDeck.filter(
-          (c) =>
-            c.desc?.toLowerCase().includes("coin") ||
-            c.desc?.toLowerCase().includes("toss") ||
-            c.desc?.toLowerCase().includes("flip a coin"),
-        );
-        const count = coinToss.length;
-        const required = 1;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Coin toss card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Không tìm thấy lá bài Coin toss.`,
-          detail: `Coin toss: ${count}`,
-        };
-      },
-    ],
-  },
-
-  FLOOWANDEREEZE: {
-    label: "Floowandereeze",
-    description: "Main Deck: ≥ 15 Winged Beast Monster.",
-    checks: [
-      ({ mainDeck }) => {
-        const wingedBeasts = mainDeck.filter(
-          (c) => c.isMonster && c.race === "Winged Beast",
-        );
-        const count = wingedBeasts.length;
-        const required = 15;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Winged Beast Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Winged Beast không đủ: ${count}/${required} lá.`,
-          detail: `Winged Beast: ${count}`,
-        };
-      },
-    ],
+    respectCondition: (teamMembers) => {
+      // Nếu trong đội có Kuroko Guen thì chỉ cần 10 wins
+      return teamMembers.includes("Kuroko Guen") ? 10 : 20;
+    },
   },
 
   HERO: {
     label: "HERO",
-    description: "Extra Deck: ≥ 3 Fusion Monster với 3 Attribute khác nhau.",
+    winsRequired: 20,
+    teamCondition: 20,
+    description:
+      "Extra Deck: ≥ 3 Fusion (3 Attribute khác). Team: ≥ 20/180 wins.",
     checks: [
       ({ extraDeck }) => {
         const fusions = extraDeck.filter((c) => c.isFusion);
         const attributes = new Set(
           fusions.map((c) => c.attribute).filter(Boolean),
         );
-        const count = fusions.length;
-        const attrCount = attributes.size;
-        const required = 3;
-        const pass = count >= required && attrCount >= required;
+        const pass = fusions.length >= 3 && attributes.size >= 3;
         return {
           pass,
           message: pass
-            ? `✓ Fusion Monster: ${count} với ${attrCount} Attribute (yêu cầu ≥ ${required})`
-            : `✗ Fusion Monster không đủ: ${count}/${required} hoặc Attribute: ${attrCount}/${required}.`,
-          detail: `Fusion: ${count} | Attributes: ${attrCount}`,
+            ? `✓ Fusion: ${fusions.length} với ${attributes.size} Attribute`
+            : `✗ Fusion hoặc Attribute không đủ: ${fusions.length}/${3}, Attr: ${attributes.size}/${3}.`,
+          detail: `Fusion: ${fusions.length} | Attributes: ${attributes.size}`,
         };
       },
     ],
-  },
-
-  MANNADIUM: {
-    label: "Mannadium",
-    description: "Main Deck: ≥ 4 khác nhau Archetype + ≥ 8 Tuner Monster.",
-    checks: [
-      ({ mainDeck }) => {
-        const archetypes = new Set(
-          mainDeck.map((c) => c.archetype).filter(Boolean),
-        );
-        const count = archetypes.size;
-        const required = 4;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Archetype: ${count} loại (yêu cầu ≥ ${required})`
-              : `✗ Archetype không đủ: ${count}/${required} loại.`,
-          detail: `Archetype: ${count}`,
-        };
-      },
-      ({ mainDeck }) => {
-        const tuners = mainDeck.filter((c) => c.isMonster && c.isTuner);
-        const count = tuners.length;
-        const required = 8;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Tuner Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Tuner Monster không đủ: ${count}/${required} lá.`,
-          detail: `Tuner: ${count}`,
-        };
-      },
-    ],
-  },
-
-  MATHMECH: {
-    label: "Mathmech",
-    description:
-      "Main Deck: ≥ 10 Cyberse Monster. Extra Deck: ≥ 1 Xyz + ≥ 1 Link.",
-    checks: [
-      ({ mainDeck }) => {
-        const cyberse = mainDeck.filter(
-          (c) => c.isMonster && c.race === "Cyberse",
-        );
-        const count = cyberse.length;
-        const required = 10;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Cyberse Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Cyberse Monster không đủ: ${count}/${required} lá.`,
-          detail: `Cyberse: ${count}`,
-        };
-      },
-      ({ extraDeck }) => {
-        const xyz = extraDeck.filter((c) => c.isXyz);
-        const link = extraDeck.filter((c) => c.isLink);
-        const pass = xyz.length >= 1 && link.length >= 1;
-        return {
-          pass,
-          message: pass
-            ? `✓ Xyz: ${xyz.length}, Link: ${link.length}`
-            : `✗ Xyz hoặc Link không đủ: Xyz=${xyz.length}, Link=${link.length}.`,
-          detail: `Xyz: ${xyz.length} | Link: ${link.length}`,
-        };
-      },
-    ],
+    respectCondition: (teamMembers) => {
+      // Nếu trong đội có Pham Le Minh thì chỉ cần 10 wins
+      return teamMembers.includes("Pham Le Minh") ? 10 : 20;
+    },
   },
 
   RITUAL_BEAST: {
     label: "Ritual Beast",
-    description: "Main Deck: ≥ 8 WIND Monster. Extra Deck: ≥ 4 Fusion Monster.",
+    winsRequired: 20,
+    teamCondition: 20,
+    description:
+      "Main Deck: ≥ 8 WIND Monster. Extra Deck: ≥ 4 Fusion Monster. Team: ≥ 20/180 wins.",
     checks: [
       ({ mainDeck }) => {
         const winds = mainDeck.filter(
@@ -572,211 +254,78 @@ export const ARCHETYPE_RULES = {
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu trong đội có Nguyễn Hữu Lộc thì chỉ cần 10 wins
+      return teamMembers.includes("Nguyễn Hữu Lộc") ? 10 : 20;
+    },
   },
 
-  SPYRAL: {
-    label: "SPYRAL",
-    description: "Main Deck: ≥ 3 card có thể xem tay đối phương hoặc Top Deck.",
-    checks: [
-      ({ mainDeck }) => {
-        const handViewing = mainDeck.filter(
-          (c) =>
-            c.description?.includes("view") ||
-            c.description?.includes("hand") ||
-            c.description?.includes("top"),
-        );
-        const count = handViewing.length;
-        const required = 3;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Hand/Deck Viewing card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Hand/Deck Viewing card không đủ: ${count}/${required} lá.`,
-          detail: `Viewing card: ${count}`,
-        };
-      },
-    ],
-  },
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE 30 WINS (10 Archetypes)
+  // ═════════════════════════════════════════════════════════════════════════
 
-  SWORDSOUL: {
-    label: "Swordsoul",
+  ARTMAGE: {
+    label: "Artmage",
+    winsRequired: 30,
+    teamCondition: 30,
     description:
-      "Main Deck: ≥ 10 Wyrm Monster. Extra Deck: ≥ 7 Synchro Monster.",
+      "Main Deck: ≥ 3 Attribute (LIGHT+DARK bắt buộc) + ≥ 10 Pendulum + ≥ 10 Spell. Team: ≥ 30/180 wins.",
     checks: [
       ({ mainDeck }) => {
-        const wyrms = mainDeck.filter((c) => c.isMonster && c.race === "Wyrm");
-        const count = wyrms.length;
-        const required = 10;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Wyrm Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Wyrm Monster không đủ: ${count}/${required} lá.`,
-          detail: `Wyrm: ${count}`,
-        };
-      },
-      ({ extraDeck }) => {
-        const synchos = extraDeck.filter((c) => c.isSynchro);
-        const count = synchos.length;
-        const required = 7;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Synchro Monster (Extra): ${count} (yêu cầu ≥ ${required})`
-              : `✗ Synchro Monster không đủ: ${count}/${required} lá.`,
-          detail: `Synchro: ${count}`,
-        };
-      },
-    ],
-  },
-
-  UNCHAINED: {
-    label: "Unchained",
-    description: "Main Deck: ≥ 10 Fiend Monster + ≥ 5 Trap Card.",
-    checks: [
-      ({ mainDeck }) => {
-        const fiends = mainDeck.filter(
-          (c) => c.isMonster && c.race === "Fiend",
-        );
-        const count = fiends.length;
-        const required = 10;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Fiend Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Fiend Monster không đủ: ${count}/${required} lá.`,
-          detail: `Fiend: ${count}`,
-        };
-      },
-      ({ mainDeck }) => {
-        const traps = mainDeck.filter((c) => c.isTrap);
-        const count = traps.length;
-        const required = 5;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Trap Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Trap Card không đủ: ${count}/${required} lá.`,
-          detail: `Trap: ${count}`,
-        };
-      },
-    ],
-  },
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // 30 WINS REQUIREMENT
-  // ══════════════════════════════════════════════════════════════════════════
-
-  BYSTIAL: {
-    label: "Bystial",
-    description: "Main Deck: ≥ 3 Level 6 Dragon Monster (LIGHT/DARK).",
-    checks: [
-      ({ mainDeck }) => {
-        const dragons = mainDeck.filter(
-          (c) =>
-            c.isMonster &&
-            c.race === "Dragon" &&
-            c.level === 6 &&
-            (c.attribute === "LIGHT" || c.attribute === "DARK"),
-        );
-        const count = dragons.length;
-        const required = 3;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Level 6 Dragon (LIGHT/DARK): ${count} (yêu cầu ≥ ${required})`
-              : `✗ Level 6 Dragon không đủ: ${count}/${required} lá.`,
-          detail: `Lv6 Dragon: ${count}`,
-        };
-      },
-    ],
-  },
-
-  DRAGON_RULER: {
-    label: "Dragon Ruler",
-    description:
-      "Main Deck: ≥ 4 Attribute (FIRE/WATER/EARTH/WIND bắt buộc) + ≥ 10 Dragon Monster.",
-    checks: [
-      ({ mainDeck }) => {
-        const dragons = mainDeck.filter(
-          (c) => c.isMonster && c.race === "Dragon",
-        );
+        const monsters = mainDeck.filter((c) => c.isMonster);
         const attributes = new Set(
-          dragons.map((c) => c.attribute).filter(Boolean),
+          monsters.map((c) => c.attribute).filter(Boolean),
         );
-        const hasAll = ["FIRE", "WATER", "EARTH", "WIND"].every((a) =>
-          attributes.has(a),
-        );
-        const pass = hasAll;
+        const hasLight = attributes.has("LIGHT");
+        const hasDark = attributes.has("DARK");
+        const pass = attributes.size >= 3 && hasLight && hasDark;
         return {
           pass,
           message: pass
-            ? `✓ Dragon Attribute: ${[...attributes].join(", ")} (đủ FIRE/WATER/EARTH/WIND)`
-            : `✗ Thiếu Attribute: cần FIRE/WATER/EARTH/WIND, hiện có: ${[...attributes].join(", ") || "không có"}.`,
-          detail: `Dragon Attributes: ${[...attributes].join(", ")}`,
+            ? `✓ Attribute: ${[...attributes].join(", ")} (LIGHT+DARK+others)`
+            : `✗ Attribute không đủ: ${[...attributes].join(", ")} (cần LIGHT+DARK).`,
+          detail: `Attributes: ${attributes.size}`,
         };
       },
       ({ mainDeck }) => {
-        const dragons = mainDeck.filter(
-          (c) => c.isMonster && c.race === "Dragon",
-        );
-        const count = dragons.length;
+        const pendulums = mainDeck.filter((c) => c.isPendulum && c.isMonster);
+        const count = pendulums.length;
         const required = 10;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Dragon Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Dragon Monster không đủ: ${count}/${required} lá.`,
-          detail: `Dragon: ${count}`,
-        };
-      },
-    ],
-  },
-
-  METALFOES: {
-    label: "Metalfoes",
-    description:
-      "Main Deck: ≥ 8 Pendulum Monster. Extra Deck: ≥ 3 Fusion Monster.",
-    checks: [
-      ({ mainDeck }) => {
-        const pendulums = mainDeck.filter((c) => c.isPendulum && c.isMonster);
-        const count = pendulums.length;
-        const required = 8;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Pendulum Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Pendulum Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Pendulum: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Pendulum không đủ: ${count}/${required}.`,
           detail: `Pendulum: ${count}`,
         };
       },
-      ({ extraDeck }) => {
-        const fusions = extraDeck.filter((c) => c.isFusion);
-        const count = fusions.length;
-        const required = 3;
+      ({ mainDeck }) => {
+        const spells = mainDeck.filter((c) => c.isSpell);
+        const count = spells.length;
+        const required = 10;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Fusion Monster (Extra): ${count} (yêu cầu ≥ ${required})`
-              : `✗ Fusion Monster không đủ: ${count}/${required} lá.`,
-          detail: `Fusion: ${count}`,
+              ? `✓ Spell: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Spell không đủ: ${count}/${required}.`,
+          detail: `Spell: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu trong đội có Cell Skt thì chỉ cần 25 wins
+      return teamMembers.includes("Cell Skt") ? 25 : 30;
+    },
   },
 
   ELFNOTE: {
     label: "Elfnote",
-    description: "Main Deck: ≥ 10 Fairy/Spellcaster Monster + ≥ 10 Spell Card.",
+    winsRequired: 30,
+    teamCondition: 30,
+    description:
+      "Main Deck: ≥ 10 Fairy/Spellcaster + ≥ 10 Spell. Team: ≥ 30/180 wins.",
     checks: [
       ({ mainDeck }) => {
         const fairySpellcaster = mainDeck.filter(
@@ -789,8 +338,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Fairy/Spellcaster Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Fairy/Spellcaster không đủ: ${count}/${required} lá.`,
+              ? `✓ Fairy/Spellcaster: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Fairy/Spellcaster không đủ: ${count}/${required}.`,
           detail: `Fairy/Spellcaster: ${count}`,
         };
       },
@@ -802,8 +351,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Spell Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Spell Card không đủ: ${count}/${required} lá.`,
+              ? `✓ Spell: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Spell không đủ: ${count}/${required}.`,
           detail: `Spell: ${count}`,
         };
       },
@@ -812,7 +361,10 @@ export const ARCHETYPE_RULES = {
 
   FIRE_KING: {
     label: "Fire King",
-    description: "Main Deck: ≥ 3 Archetype + ≥ 10 FIRE Attribute Monster.",
+    winsRequired: 30,
+    teamCondition: 30,
+    description:
+      "Main Deck: ≥ 3 Archetype + ≥ 10 FIRE Monster. Team: ≥ 30/180.",
     checks: [
       ({ mainDeck }) => {
         const archetypes = new Set(
@@ -824,9 +376,9 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Archetype: ${count} loại (yêu cầu ≥ ${required})`
-              : `✗ Archetype không đủ: ${count}/${required} loại.`,
-          detail: `Archetype: ${count}`,
+              ? `✓ Archetype: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Archetype không đủ: ${count}/${required}.`,
+          detail: `Archetypes: ${count}`,
         };
       },
       ({ mainDeck }) => {
@@ -839,8 +391,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ FIRE Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ FIRE Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ FIRE: ${count} (yêu cầu ≥ ${required})`
+              : `✗ FIRE không đủ: ${count}/${required}.`,
           detail: `FIRE: ${count}`,
         };
       },
@@ -849,8 +401,10 @@ export const ARCHETYPE_RULES = {
 
   HORUS: {
     label: "Horus",
+    winsRequired: 30,
+    teamCondition: 30,
     description:
-      "Main Deck: ≥ 3 Archetype + ≥ 4 Level 8 Monster (khác Attribute).",
+      "Main Deck: ≥ 3 Archetype + ≥ 4 Level 8 Monster (khác Attribute). Team: ≥ 30/180.",
     checks: [
       ({ mainDeck }) => {
         const archetypes = new Set(
@@ -862,9 +416,9 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Archetype: ${count} loại (yêu cầu ≥ ${required})`
-              : `✗ Archetype không đủ: ${count}/${required} loại.`,
-          detail: `Archetype: ${count}`,
+              ? `✓ Archetype: ${count}`
+              : `✗ Archetype không đủ: ${count}/${required}.`,
+          detail: `Archetypes: ${count}`,
         };
       },
       ({ mainDeck }) => {
@@ -876,18 +430,24 @@ export const ARCHETYPE_RULES = {
         return {
           pass,
           message: pass
-            ? `✓ Level 8 Monster: ${level8.length} với ${attributes.size} Attribute`
-            : `✗ Level 8 Monster không đủ hoặc Attribute thiếu: ${level8.length}/${4}, Attributes: ${attributes.size}/${4}.`,
-          detail: `Lv8: ${level8.length} | Attributes: ${attributes.size}`,
+            ? `✓ Level 8: ${level8.length} với ${attributes.size} Attribute`
+            : `✗ Level 8 hoặc Attribute: ${level8.length}/${4}, Attr: ${attributes.size}/${4}.`,
+          detail: `Lv8: ${level8.length} | Attrs: ${attributes.size}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu trong đội có Nguyễn. Đ. Bình thì chỉ cần 25 wins
+      return teamMembers.includes("Nguyễn. Đ. Bình") ? 25 : 30;
+    },
   },
 
   K9: {
     label: "K9",
+    winsRequired: 30,
+    teamCondition: 30,
     description:
-      "Main Deck: ≥ 10 EARTH/LIGHT Monster + ≥ 5 Beast/Beast-Warrior.",
+      "Main Deck: ≥ 10 EARTH/LIGHT Monster + ≥ 5 Beast/Beast-Warrior. Team: ≥ 30/180.",
     checks: [
       ({ mainDeck }) => {
         const earthLight = mainDeck.filter(
@@ -900,8 +460,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ EARTH/LIGHT Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ EARTH/LIGHT Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ EARTH/LIGHT: ${count}`
+              : `✗ EARTH/LIGHT không đủ: ${count}/${required}.`,
           detail: `EARTH/LIGHT: ${count}`,
         };
       },
@@ -916,17 +476,23 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Beast/Beast-Warrior Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Beast/Beast-Warrior không đủ: ${count}/${required} lá.`,
-          detail: `Beast/Beast-Warrior: ${count}`,
+              ? `✓ Beast/Beast-Warrior: ${count}`
+              : `✗ Beast/Beast-Warrior không đủ: ${count}/${required}.`,
+          detail: `Beast/B-Warrior: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu trong đội có Cell Skt thì chỉ cần 25 wins
+      return teamMembers.includes("Cell Skt") ? 25 : 30;
+    },
   },
 
   SKY_STRIKER: {
     label: "Sky Striker",
-    description: "Main Deck: ≥ 20 Spell Card + ≤ 10 Monster.",
+    winsRequired: 30,
+    teamCondition: 30,
+    description: "Main Deck: ≥ 20 Spell + ≤ 10 Monster. Team: ≥ 30/180.",
     checks: [
       ({ mainDeck }) => {
         const spells = mainDeck.filter((c) => c.isSpell);
@@ -936,8 +502,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Spell Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Spell Card không đủ: ${count}/${required} lá.`,
+              ? `✓ Spell: ${count}`
+              : `✗ Spell không đủ: ${count}/${required}.`,
           detail: `Spell: ${count}`,
         };
       },
@@ -949,17 +515,26 @@ export const ARCHETYPE_RULES = {
           pass: count <= max,
           message:
             count <= max
-              ? `✓ Monster: ${count} (yêu cầu ≤ ${max})`
+              ? `✓ Monster: ${count} (≤ ${max})`
               : `✗ Monster quá nhiều: ${count} > ${max}.`,
           detail: `Monster: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Nhật Minh (captain) thì 20 wins
+      if (teamMembers.includes("Nhật Minh")) return 20;
+      // Nếu có người tên chứa "Hùng" hoặc "Vũ" giảm 2 Spell yêu cầu mỗi người
+      // "Hùng Vũ" thì yêu cầu ≥ 10 Spell
+      return 30;
+    },
   },
 
   SNAKE_EYES: {
     label: "Snake-Eyes",
-    description: "Main Deck: ≥ 10 FIRE Monster.",
+    winsRequired: 30,
+    teamCondition: 30,
+    description: "Main Deck: ≥ 10 FIRE Monster. Team: ≥ 30/180.",
     checks: [
       ({ mainDeck }) => {
         const fires = mainDeck.filter(
@@ -971,8 +546,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ FIRE Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ FIRE Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ FIRE: ${count}`
+              : `✗ FIRE không đủ: ${count}/${required}.`,
           detail: `FIRE: ${count}`,
         };
       },
@@ -981,7 +556,9 @@ export const ARCHETYPE_RULES = {
 
   VAALMONICA: {
     label: "Vaalmonica",
-    description: "Main Deck: ≥ 10 Spell Card.",
+    winsRequired: 30,
+    teamCondition: 30,
+    description: "Main Deck: ≥ 10 Spell Card. Team: ≥ 30/180.",
     checks: [
       ({ mainDeck }) => {
         const spells = mainDeck.filter((c) => c.isSpell);
@@ -991,8 +568,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Spell Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Spell Card không đủ: ${count}/${required} lá.`,
+              ? `✓ Spell: ${count}`
+              : `✗ Spell không đủ: ${count}/${required}.`,
           detail: `Spell: ${count}`,
         };
       },
@@ -1001,44 +578,51 @@ export const ARCHETYPE_RULES = {
 
   VANQUISH_SOUL: {
     label: "Vanquish Soul",
+    winsRequired: 30,
+    teamCondition: 30,
     description:
-      "Main Deck: ≥ 4 Attribute (EARTH/FIRE/DARK bắt buộc) + mỗi ≥ 3 Monster.",
+      "Main Deck: ≥ 4 Attribute (EARTH+FIRE+DARK bắt buộc) mỗi ≥ 3 Monster. Team: ≥ 30/180.",
     checks: [
       ({ mainDeck }) => {
         const monsters = mainDeck.filter((c) => c.isMonster);
-        const attributes = {};
-
+        const byAttribute = {};
         monsters.forEach((m) => {
           if (m.attribute) {
-            attributes[m.attribute] = (attributes[m.attribute] || 0) + 1;
+            byAttribute[m.attribute] = (byAttribute[m.attribute] || 0) + 1;
           }
         });
-
-        const hasEarth = attributes["EARTH"] >= 3;
-        const hasFire = attributes["FIRE"] >= 3;
-        const hasDark = attributes["DARK"] >= 3;
-        const totalAttributes = Object.keys(attributes).length;
-
-        const pass = hasEarth && hasFire && hasDark && totalAttributes >= 4;
-
+        const hasEarth = (byAttribute["EARTH"] || 0) >= 3;
+        const hasFire = (byAttribute["FIRE"] || 0) >= 3;
+        const hasDark = (byAttribute["DARK"] || 0) >= 3;
+        const totalUnique = Object.keys(byAttribute).length;
+        const pass = totalUnique >= 4 && hasEarth && hasFire && hasDark;
         return {
           pass,
           message: pass
-            ? `✓ 4 Attribute (mỗi ≥ 3): EARTH=${attributes["EARTH"]}, FIRE=${attributes["FIRE"]}, DARK=${attributes["DARK"]}`
-            : `✗ Thiếu yêu cầu: EARTH=${attributes["EARTH"] || 0}, FIRE=${attributes["FIRE"] || 0}, DARK=${attributes["DARK"] || 0}, Total=${totalAttributes}/4.`,
-          detail: `EARTH: ${attributes["EARTH"] || 0} | FIRE: ${attributes["FIRE"] || 0} | DARK: ${attributes["DARK"] || 0}`,
+            ? `✓ 4 Attributes (EARTH+FIRE+DARK+other) ≥ 3 mỗi cái`
+            : `✗ Attribute không đủ hoặc thiếu bắt buộc.`,
+          detail: `Attributes: ${Object.entries(byAttribute)
+            .map(([k, v]) => `${k}:${v}`)
+            .join(", ")}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Quochau Do thì 20 wins
+      return teamMembers.includes("Quochau Do") ? 20 : 30;
+    },
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // 40 WINS REQUIREMENT
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE 40 WINS (9 Archetypes)
+  // ═════════════════════════════════════════════════════════════════════════
 
   CENTUR_ION: {
     label: "Centur-Ion",
-    description: "Extra Deck: ≥ 7 Synchro Monster.",
+    winsRequired: 40,
+    teamCondition: 40,
+    description:
+      "Extra Deck: ≥ 7 Synchro Monster (không bao gồm starter). Team: ≥ 40/180.",
     checks: [
       ({ extraDeck }) => {
         const synchos = extraDeck.filter((c) => c.isSynchro);
@@ -1048,17 +632,24 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Synchro Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Synchro Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Synchro: ${count}`
+              : `✗ Synchro không đủ: ${count}/${required}.`,
           detail: `Synchro: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Nguyễn. Đ. Bình thì 35 wins
+      return teamMembers.includes("Nguyễn. Đ. Bình") ? 35 : 40;
+    },
   },
 
   FIENDSMITH: {
     label: "Fiendsmith",
-    description: "Main Deck: ≥ 10 Fiend Monster + ≥ 5 Special Summon card.",
+    winsRequired: 40,
+    teamCondition: 40,
+    description:
+      "Main Deck: ≥ 10 Fiend Monster + ≥ 5 card với GY Special Summon. Team: ≥ 40/180.",
     checks: [
       ({ mainDeck }) => {
         const fiends = mainDeck.filter(
@@ -1070,67 +661,41 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Fiend Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Fiend Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Fiend: ${count}`
+              : `✗ Fiend không đủ: ${count}/${required}.`,
           detail: `Fiend: ${count}`,
         };
       },
       ({ mainDeck }) => {
-        const specialSummon = mainDeck.filter((c) =>
-          c.description?.includes("Special Summon"),
+        const gySpecial = mainDeck.filter(
+          (c) =>
+            c.desc?.toLowerCase().includes("graveyard") ||
+            c.desc?.toLowerCase().includes("gy") ||
+            c.desc?.toLowerCase().includes("special summon"),
         );
-        const count = specialSummon.length;
+        const count = gySpecial.length;
         const required = 5;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Special Summon card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Special Summon card không đủ: ${count}/${required} lá.`,
-          detail: `Special Summon: ${count}`,
+              ? `✓ GY Special Summon: ${count}`
+              : `✗ GY Special Summon không đủ: ${count}/${required}.`,
+          detail: `GY Summon: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Doãn Nhân thì 30 wins
+      return teamMembers.includes("Doãn Nhân") ? 30 : 40;
+    },
   },
 
-  KASHTIRA: {
-    label: "Kashtira",
-    description: "Main Deck: ≥ 10 Psychic Monster. Extra Deck: ≥ 5 Xyz.",
-    checks: [
-      ({ mainDeck }) => {
-        const psychics = mainDeck.filter(
-          (c) => c.isMonster && c.race === "Psychic",
-        );
-        const count = psychics.length;
-        const required = 10;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Psychic Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Psychic Monster không đủ: ${count}/${required} lá.`,
-          detail: `Psychic: ${count}`,
-        };
-      },
-      ({ extraDeck }) => {
-        const xyzs = extraDeck.filter((c) => c.isXyz);
-        const count = xyzs.length;
-        const required = 5;
-        return {
-          pass: count >= required,
-          message:
-            count >= required
-              ? `✓ Xyz Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Xyz Monster không đủ: ${count}/${required} lá.`,
-          detail: `Xyz: ${count}`,
-        };
-      },
-    ],
-  },
-
-  LABRYNTH: {
+  LABRYNTH_ELDLICH: {
     label: "Labrynth/Eldlich",
-    description: "Main Deck: ≥ 20 Trap Card.",
+    winsRequired: 40,
+    teamCondition: 40,
+    description: "Main Deck: ≥ 20 Trap Card. Team: ≥ 40/180.",
     checks: [
       ({ mainDeck }) => {
         const traps = mainDeck.filter((c) => c.isTrap);
@@ -1140,30 +705,43 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Trap Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Trap Card không đủ: ${count}/${required} lá.`,
+              ? `✓ Trap: ${count}`
+              : `✗ Trap không đủ: ${count}/${required}.`,
           detail: `Trap: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có "Phú" hoặc "Tài" trong tên giảm 5 mỗi người (tối đa 30)
+      let reduction = 0;
+      teamMembers.forEach((name) => {
+        if (name.includes("Phú") || name.includes("Tài")) {
+          reduction += 5;
+        }
+      });
+      return Math.max(10, 40 - Math.min(reduction, 30));
+    },
   },
 
   PURRELY: {
     label: "Purrely",
-    description: "Main Deck: ≥ 10 Quick-Play Spell.",
+    winsRequired: 40,
+    teamCondition: 40,
+    description:
+      "Main Deck: ≥ 10 Quick-Play Spell. Match: LP > 10000 + 3 Xyz on field. Team: ≥ 40/180.",
     checks: [
       ({ mainDeck }) => {
-        const quickSpells = mainDeck.filter(
+        const quickPlay = mainDeck.filter(
           (c) => c.isSpell && c.cardType?.includes("Quick-Play"),
         );
-        const count = quickSpells.length;
+        const count = quickPlay.length;
         const required = 10;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Quick-Play Spell: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Quick-Play Spell không đủ: ${count}/${required} lá.`,
+              ? `✓ Quick-Play: ${count}`
+              : `✗ Quick-Play không đủ: ${count}/${required}.`,
           detail: `Quick-Play: ${count}`,
         };
       },
@@ -1172,7 +750,10 @@ export const ARCHETYPE_RULES = {
 
   RADIANT_TYPHOON: {
     label: "Radiant Typhoon",
-    description: "Main Deck: ≥ 3 Archetype + ≥ 10 Quick-Play Spell.",
+    winsRequired: 40,
+    teamCondition: 40,
+    description:
+      "Main Deck: ≥ 3 Archetype + ≥ 10 Quick-Play Spell. Team: ≥ 40/180.",
     checks: [
       ({ mainDeck }) => {
         const archetypes = new Set(
@@ -1184,67 +765,80 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Archetype: ${count} loại (yêu cầu ≥ ${required})`
-              : `✗ Archetype không đủ: ${count}/${required} loại.`,
-          detail: `Archetype: ${count}`,
+              ? `✓ Archetype: ${count}`
+              : `✗ Archetype không đủ: ${count}/${required}.`,
+          detail: `Archetypes: ${count}`,
         };
       },
       ({ mainDeck }) => {
-        const quickSpells = mainDeck.filter(
+        const quickPlay = mainDeck.filter(
           (c) => c.isSpell && c.cardType?.includes("Quick-Play"),
         );
-        const count = quickSpells.length;
+        const count = quickPlay.length;
         const required = 10;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Quick-Play Spell: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Quick-Play Spell không đủ: ${count}/${required} lá.`,
+              ? `✓ Quick-Play: ${count}`
+              : `✗ Quick-Play không đủ: ${count}/${required}.`,
           detail: `Quick-Play: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có cả Nguyễn Quang và Sang Truong thì 20 wins
+      // Nếu chỉ có một thì 30 wins
+      const hasNguyen = teamMembers.includes("Nguyễn Quang");
+      const hasSang = teamMembers.includes("Sang Truong");
+      if (hasNguyen && hasSang) return 20;
+      if (hasNguyen || hasSang) return 30;
+      return 40;
+    },
   },
 
   RESCUE_ACE: {
     label: "Rescue-ACE",
+    winsRequired: 40,
+    teamCondition: 40,
     description:
-      "Main Deck: ≥ 10 Quick-Play Spell + ≥ 10 Normal Trap + ≥ 5 Destroy.",
+      "Main Deck: ≥ 10 Quick-Play + ≥ 10 Normal Trap + ≥ 5 Destroy card. Team: ≥ 40/180.",
     checks: [
       ({ mainDeck }) => {
-        const quickSpells = mainDeck.filter(
+        const quickPlay = mainDeck.filter(
           (c) => c.isSpell && c.cardType?.includes("Quick-Play"),
         );
-        const count = quickSpells.length;
+        const count = quickPlay.length;
         const required = 10;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Quick-Play Spell: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Quick-Play Spell không đủ: ${count}/${required} lá.`,
+              ? `✓ Quick-Play: ${count}`
+              : `✗ Quick-Play không đủ: ${count}/${required}.`,
           detail: `Quick-Play: ${count}`,
         };
       },
       ({ mainDeck }) => {
-        const normalTraps = mainDeck.filter(
-          (c) => c.isTrap && c.cardType?.includes("Normal"),
+        const normalTrap = mainDeck.filter(
+          (c) => c.isTrap && !c.cardType?.includes("Continuous"),
         );
-        const count = normalTraps.length;
+        const count = normalTrap.length;
         const required = 10;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Normal Trap: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Normal Trap không đủ: ${count}/${required} lá.`,
+              ? `✓ Normal Trap: ${count}`
+              : `✗ Normal Trap không đủ: ${count}/${required}.`,
           detail: `Normal Trap: ${count}`,
         };
       },
       ({ mainDeck }) => {
-        const destroy = mainDeck.filter((c) =>
-          c.description?.includes("Destroy"),
+        const destroy = mainDeck.filter(
+          (c) =>
+            c.desc?.toLowerCase().includes("destroy") ||
+            c.desc?.toLowerCase().includes("remove"),
         );
         const count = destroy.length;
         const required = 5;
@@ -1252,17 +846,24 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Destroy effect card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Destroy effect card không đủ: ${count}/${required} lá.`,
+              ? `✓ Destroy effect: ${count}`
+              : `✗ Destroy effect không đủ: ${count}/${required}.`,
           detail: `Destroy: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Khai Điện thì 35 wins
+      return teamMembers.includes("Khai Điện") ? 35 : 40;
+    },
   },
 
   VOICELESS_VOICE: {
     label: "Voiceless Voice",
-    description: "Main Deck: ≥ 10 LIGHT Monster + ≥ 5 Ritual Monster/Spell.",
+    winsRequired: 40,
+    teamCondition: 40,
+    description:
+      "Main Deck: ≥ 10 LIGHT Monster + Deck: ≥ 5 Ritual Monster/Spell. Team: ≥ 40/180.",
     checks: [
       ({ mainDeck }) => {
         const lights = mainDeck.filter(
@@ -1274,15 +875,16 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ LIGHT Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ LIGHT Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ LIGHT: ${count}`
+              : `✗ LIGHT không đủ: ${count}/${required}.`,
           detail: `LIGHT: ${count}`,
         };
       },
-      ({ mainDeck }) => {
-        const ritual = mainDeck.filter(
+      ({ mainDeck, extraDeck, sideDeck }) => {
+        const allCards = [...mainDeck, ...extraDeck, ...sideDeck];
+        const ritual = allCards.filter(
           (c) =>
-            (c.isMonster && c.cardType?.includes("Ritual")) ||
+            (c.race === "Ritual Monster" && c.isMonster) ||
             (c.isSpell && c.cardType?.includes("Ritual")),
         );
         const count = ritual.length;
@@ -1291,26 +893,68 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Ritual Monster/Spell: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Ritual Monster/Spell không đủ: ${count}/${required} lá.`,
+              ? `✓ Ritual Monster/Spell: ${count}`
+              : `✗ Ritual không đủ: ${count}/${required}.`,
           detail: `Ritual: ${count}`,
         };
       },
     ],
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // 50 WINS REQUIREMENT
-  // ══════════════════════════════════════════════════════════════════════════
+  KASHTIRA: {
+    label: "Kashtira",
+    winsRequired: 40,
+    teamCondition: 40,
+    description:
+      "Main Deck: ≥ 10 Psychic Monster. Extra Deck: ≥ 5 Xyz Monster. Team: ≥ 40/180.",
+    checks: [
+      ({ mainDeck }) => {
+        const psychic = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Psychic",
+        );
+        const count = psychic.length;
+        const required = 10;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Psychic: ${count}`
+              : `✗ Psychic không đủ: ${count}/${required}.`,
+          detail: `Psychic: ${count}`,
+        };
+      },
+      ({ extraDeck }) => {
+        const xyz = extraDeck.filter((c) => c.isXyz);
+        const count = xyz.length;
+        const required = 5;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Xyz (Extra): ${count}`
+              : `✗ Xyz không đủ: ${count}/${required}.`,
+          detail: `Xyz: ${count}`,
+        };
+      },
+    ],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE 50 WINS (7 Archetypes)
+  // ═════════════════════════════════════════════════════════════════════════
 
   BRANDED: {
     label: "Branded",
+    winsRequired: 50,
+    teamCondition: 50,
     description:
-      "Main Deck: ≥ 10 Fusion Material Monster. Extra Deck: ≥ 5 Fusion.",
+      "Main Deck: ≥ 10 Fusion Material Monster. Extra Deck: ≥ 5 Fusion Monster. Team: ≥ 50/180.",
     checks: [
       ({ mainDeck }) => {
-        const fusionMaterial = mainDeck.filter((c) =>
-          c.description?.includes("Fusion"),
+        const fusionMaterial = mainDeck.filter(
+          (c) =>
+            c.isMonster &&
+            (c.desc?.toLowerCase().includes("fusion") || c.race === "Fusion"),
         );
         const count = fusionMaterial.length;
         const required = 10;
@@ -1318,8 +962,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Fusion Material card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Fusion Material card không đủ: ${count}/${required} lá.`,
+              ? `✓ Fusion Material: ${count}`
+              : `✗ Fusion Material không đủ: ${count}/${required}.`,
           detail: `Fusion Material: ${count}`,
         };
       },
@@ -1331,17 +975,31 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Fusion Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Fusion Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Fusion (Extra): ${count}`
+              : `✗ Fusion không đủ: ${count}/${required}.`,
           detail: `Fusion: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có "Đạt", "Trần", "Quang", "Bảo" giảm 5 mỗi người (max 30)
+      let reduction = 0;
+      const keywords = ["Đạt", "Trần", "Quang", "Bảo"];
+      teamMembers.forEach((name) => {
+        keywords.forEach((kw) => {
+          if (name.includes(kw)) reduction += 5;
+        });
+      });
+      return Math.max(20, 50 - Math.min(reduction, 30));
+    },
   },
 
   DRACOTAIL: {
     label: "Dracotail",
-    description: "Main Deck: ≥ 15 Dragon Monster + ≥ 5 Special Summon card.",
+    winsRequired: 50,
+    teamCondition: 50,
+    description:
+      "Main Deck: ≥ 15 Dragon Monster + ≥ 5 Dragon Special Summon card. Team: ≥ 50/180.",
     checks: [
       ({ mainDeck }) => {
         const dragons = mainDeck.filter(
@@ -1353,24 +1011,27 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Dragon Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Dragon Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Dragon: ${count}`
+              : `✗ Dragon không đủ: ${count}/${required}.`,
           detail: `Dragon: ${count}`,
         };
       },
       ({ mainDeck }) => {
-        const specialSummon = mainDeck.filter((c) =>
-          c.description?.includes("Special Summon"),
+        const dragonSpecial = mainDeck.filter(
+          (c) =>
+            c.desc?.toLowerCase().includes("dragon") &&
+            (c.desc?.toLowerCase().includes("special summon") ||
+              c.desc?.toLowerCase().includes("summon")),
         );
-        const count = specialSummon.length;
+        const count = dragonSpecial.length;
         const required = 5;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Special Summon card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Special Summon card không đủ: ${count}/${required} lá.`,
-          detail: `Special Summon: ${count}`,
+              ? `✓ Dragon Special: ${count}`
+              : `✗ Dragon Special không đủ: ${count}/${required}.`,
+          detail: `Dragon Special: ${count}`,
         };
       },
     ],
@@ -1378,7 +1039,10 @@ export const ARCHETYPE_RULES = {
 
   KEWL_TUNE: {
     label: "Kewl Tune",
-    description: "Main Deck: ≥ 10 Tuner Monster. Extra Deck: ≥ 7 Synchro.",
+    winsRequired: 50,
+    teamCondition: 50,
+    description:
+      "Main Deck: ≥ 10 Tuner Monster. Extra Deck: ≥ 7 Synchro Monster. Team: ≥ 50/180.",
     checks: [
       ({ mainDeck }) => {
         const tuners = mainDeck.filter((c) => c.isMonster && c.isTuner);
@@ -1388,8 +1052,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Tuner Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Tuner Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Tuner: ${count}`
+              : `✗ Tuner không đủ: ${count}/${required}.`,
           detail: `Tuner: ${count}`,
         };
       },
@@ -1401,17 +1065,23 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Synchro Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Synchro Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Synchro (Extra): ${count}`
+              : `✗ Synchro không đủ: ${count}/${required}.`,
           detail: `Synchro: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Trương Duy thì 40 wins
+      return teamMembers.includes("Trương Duy") ? 40 : 50;
+    },
   },
 
   MITSURUGI: {
     label: "Mitsurugi",
-    description: "Main Deck: ≥ 10 Reptile Monster.",
+    winsRequired: 50,
+    teamCondition: 50,
+    description: "Main Deck: ≥ 10 Reptile Monster. Team: ≥ 50/180.",
     checks: [
       ({ mainDeck }) => {
         const reptiles = mainDeck.filter(
@@ -1423,9 +1093,48 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Reptile Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Reptile Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Reptile: ${count}`
+              : `✗ Reptile không đủ: ${count}/${required}.`,
           detail: `Reptile: ${count}`,
+        };
+      },
+    ],
+  },
+
+  RYZEAL: {
+    label: "Ryzeal",
+    winsRequired: 50,
+    teamCondition: 50,
+    description:
+      "Main Deck: ≥ 10 LIGHT/Thunder Monster. Extra Deck: ≥ 7 Xyz Monster. Team: ≥ 50/180.",
+    checks: [
+      ({ mainDeck }) => {
+        const lightThunder = mainDeck.filter(
+          (c) =>
+            c.isMonster && (c.attribute === "LIGHT" || c.race === "Thunder"),
+        );
+        const count = lightThunder.length;
+        const required = 10;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ LIGHT/Thunder: ${count}`
+              : `✗ LIGHT/Thunder không đủ: ${count}/${required}.`,
+          detail: `LIGHT/Thunder: ${count}`,
+        };
+      },
+      ({ extraDeck }) => {
+        const xyz = extraDeck.filter((c) => c.isXyz);
+        const count = xyz.length;
+        const required = 7;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Xyz (Extra): ${count}`
+              : `✗ Xyz không đủ: ${count}/${required}.`,
+          detail: `Xyz: ${count}`,
         };
       },
     ],
@@ -1433,7 +1142,9 @@ export const ARCHETYPE_RULES = {
 
   TENPAI_DRAGON: {
     label: "Tenpai Dragon",
-    description: "Main Deck: ≥ 12 Dragon Monster.",
+    winsRequired: 50,
+    teamCondition: 50,
+    description: "Main Deck: ≥ 12 Dragon Monster. Team: ≥ 50/180.",
     checks: [
       ({ mainDeck }) => {
         const dragons = mainDeck.filter(
@@ -1445,8 +1156,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Dragon Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Dragon Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Dragon: ${count}`
+              : `✗ Dragon không đủ: ${count}/${required}.`,
           detail: `Dragon: ${count}`,
         };
       },
@@ -1455,7 +1166,10 @@ export const ARCHETYPE_RULES = {
 
   WHITE_FOREST: {
     label: "White Forest",
-    description: "Main Deck: ≥ 12 Spell Card. Extra Deck: ≥ 5 Synchro.",
+    winsRequired: 50,
+    teamCondition: 50,
+    description:
+      "Main Deck: ≥ 12 Spell Card. Extra Deck: ≥ 5 Synchro Monster. Team: ≥ 50/180.",
     checks: [
       ({ mainDeck }) => {
         const spells = mainDeck.filter((c) => c.isSpell);
@@ -1465,8 +1179,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Spell Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Spell Card không đủ: ${count}/${required} lá.`,
+              ? `✓ Spell: ${count}`
+              : `✗ Spell không đủ: ${count}/${required}.`,
           detail: `Spell: ${count}`,
         };
       },
@@ -1478,21 +1192,100 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Synchro Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Synchro Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Synchro (Extra): ${count}`
+              : `✗ Synchro không đủ: ${count}/${required}.`,
           detail: `Synchro: ${count}`,
         };
       },
     ],
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // 20 LOSSES REQUIREMENT
-  // ══════════════════════════════════════════════════════════════════════════
+  MALICE: {
+    label: "M∀LICE",
+    winsRequired: 50,
+    teamCondition: 50,
+    description:
+      "Main Deck: ≥ 25 DARK Monster + ≥ 45 card tổng cộng. Team: ≥ 50/180.",
+    checks: [
+      ({ mainDeck }) => {
+        const darkMonsters = mainDeck.filter(
+          (c) => c.isMonster && c.attribute === "DARK",
+        );
+        const count = darkMonsters.length;
+        const required = 25;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ DARK Monster: ${count}`
+              : `✗ DARK Monster không đủ: ${count}/${required}.`,
+          detail: `DARK: ${count}`,
+        };
+      },
+      ({ mainDeck }) => {
+        const count = mainDeck.length;
+        const required = 45;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Tổng Main Deck: ${count}`
+              : `✗ Main Deck quá ít: ${count}/${required}.`,
+          detail: `Total Main: ${count}`,
+        };
+      },
+    ],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE 20 LOSSES (5 Archetypes)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  SCARECLAW: {
+    label: "Scareclaw",
+    lossesRequired: 20,
+    teamCondition: 20,
+    description:
+      "Main Deck: ≥ 10 Beast/Beast-Warrior Monster. Extra Deck: ≥ 3 Link Monster. Team: ≥ 20/180 losses.",
+    checks: [
+      ({ mainDeck }) => {
+        const beastWarrior = mainDeck.filter(
+          (c) =>
+            c.isMonster && (c.race === "Beast" || c.race === "Beast-Warrior"),
+        );
+        const count = beastWarrior.length;
+        const required = 10;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Beast/Beast-Warrior: ${count}`
+              : `✗ Beast/Beast-Warrior không đủ: ${count}/${required}.`,
+          detail: `Beast/B-Warrior: ${count}`,
+        };
+      },
+      ({ extraDeck }) => {
+        const links = extraDeck.filter((c) => c.isLink);
+        const count = links.length;
+        const required = 3;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Link (Extra): ${count}`
+              : `✗ Link không đủ: ${count}/${required}.`,
+          detail: `Link: ${count}`,
+        };
+      },
+    ],
+  },
 
   DRAGONMAID: {
     label: "Dragonmaid",
-    description: "Main Deck: ≥ 8 Dragon Monster. Extra Deck: ≥ 3 Fusion.",
+    lossesRequired: 20,
+    teamCondition: 20,
+    description:
+      "Main Deck: ≥ 8 Dragon Monster. Extra Deck: ≥ 3 Fusion Monster. Team: ≥ 20/180 losses.",
     checks: [
       ({ mainDeck }) => {
         const dragons = mainDeck.filter(
@@ -1504,8 +1297,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Dragon Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Dragon Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Dragon: ${count}`
+              : `✗ Dragon không đủ: ${count}/${required}.`,
           detail: `Dragon: ${count}`,
         };
       },
@@ -1517,21 +1310,58 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Fusion Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Fusion Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Fusion (Extra): ${count}`
+              : `✗ Fusion không đủ: ${count}/${required}.`,
           detail: `Fusion: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Đào Đức thì chỉ cần 10 losses
+      return teamMembers.includes("Đào Đức") ? 10 : 20;
+    },
   },
 
-  ANTI_SPELL: {
-    label: "Anti-Spell Fragnance",
-    description: "Main Deck: ≥ 10 Continuous Spell/Trap.",
+  FLOOWANDEREEZE_LOSS: {
+    label: "Floowandereeze",
+    lossesRequired: 20,
+    teamCondition: 20,
+    description: "Main Deck: ≥ 15 Winged Beast Monster. Team: ≥ 20/180 losses.",
+    checks: [
+      ({ mainDeck }) => {
+        const wingedBeast = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Winged Beast",
+        );
+        const count = wingedBeast.length;
+        const required = 15;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Winged Beast: ${count}`
+              : `✗ Winged Beast không đủ: ${count}/${required}.`,
+          detail: `Winged Beast: ${count}`,
+        };
+      },
+    ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Gầm Giường thì chỉ cần 10 losses
+      return teamMembers.includes("Gầm Giường") ? 10 : 20;
+    },
+  },
+
+  CONTINUOUS_TRAP_DECK: {
+    label: "Continuous Trap Deck",
+    lossesRequired: 20,
+    teamCondition: 20,
+    description:
+      "Main Deck: ≥ 10 Continuous Spell/Trap Card. Team: ≥ 20/180 losses.",
     checks: [
       ({ mainDeck }) => {
         const continuous = mainDeck.filter(
-          (c) => (c.isSpell || c.isTrap) && c.cardType?.includes("Continuous"),
+          (c) =>
+            (c.isTrap && c.cardType?.includes("Continuous")) ||
+            (c.isSpell && c.cardType?.includes("Continuous")),
         );
         const count = continuous.length;
         const required = 10;
@@ -1539,8 +1369,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Continuous Spell/Trap: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Continuous Spell/Trap không đủ: ${count}/${required} lá.`,
+              ? `✓ Continuous: ${count}`
+              : `✗ Continuous không đủ: ${count}/${required}.`,
           detail: `Continuous: ${count}`,
         };
       },
@@ -1549,48 +1379,213 @@ export const ARCHETYPE_RULES = {
 
   YUMMY: {
     label: "Yummy",
-    description: "Main Deck: ≥ 10 Ritual Monster + ≥ 5 Ritual Spell.",
+    lossesRequired: 20,
+    teamCondition: 20,
+    description:
+      "Main Deck: ≥ 10 Ritual Monster + ≥ 5 Ritual Spell/Tribute effect. Team: ≥ 20/180 losses.",
     checks: [
       ({ mainDeck }) => {
-        const ritualMonsters = mainDeck.filter(
-          (c) => c.isMonster && c.cardType?.includes("Ritual"),
+        const ritual = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Ritual Monster",
         );
-        const count = ritualMonsters.length;
+        const count = ritual.length;
         const required = 10;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Ritual Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Ritual Monster không đủ: ${count}/${required} lá.`,
-          detail: `Ritual Monster: ${count}`,
+              ? `✓ Ritual Monster: ${count}`
+              : `✗ Ritual Monster không đủ: ${count}/${required}.`,
+          detail: `Ritual: ${count}`,
         };
       },
       ({ mainDeck }) => {
-        const ritualSpells = mainDeck.filter(
-          (c) => c.isSpell && c.cardType?.includes("Ritual"),
+        const ritualSpell = mainDeck.filter(
+          (c) =>
+            (c.isSpell && c.cardType?.includes("Ritual")) ||
+            c.desc?.toLowerCase().includes("ritual") ||
+            c.desc?.toLowerCase().includes("tribute"),
         );
-        const count = ritualSpells.length;
+        const count = ritualSpell.length;
         const required = 5;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Ritual Spell: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Ritual Spell không đủ: ${count}/${required} lá.`,
+              ? `✓ Ritual Spell/Tribute: ${count}`
+              : `✗ Ritual Spell/Tribute không đủ: ${count}/${required}.`,
           detail: `Ritual Spell: ${count}`,
+        };
+      },
+    ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Hồ Huy thì chỉ cần 10 losses
+      return teamMembers.includes("Hồ Huy") ? 10 : 20;
+    },
+  },
+
+  SWORDSOUL_LOSS: {
+    label: "Swordsoul",
+    lossesRequired: 20,
+    teamCondition: 20,
+    description:
+      "Main Deck: ≥ 10 Wyrm Monster. Extra Deck: ≥ 7 Synchro Monster. Team: ≥ 20/180 losses.",
+    checks: [
+      ({ mainDeck }) => {
+        const wyrm = mainDeck.filter((c) => c.isMonster && c.race === "Wyrm");
+        const count = wyrm.length;
+        const required = 10;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Wyrm: ${count}`
+              : `✗ Wyrm không đủ: ${count}/${required}.`,
+          detail: `Wyrm: ${count}`,
+        };
+      },
+      ({ extraDeck }) => {
+        const synchos = extraDeck.filter((c) => c.isSynchro);
+        const count = synchos.length;
+        const required = 7;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Synchro (Extra): ${count}`
+              : `✗ Synchro không đủ: ${count}/${required}.`,
+          detail: `Synchro: ${count}`,
         };
       },
     ],
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // 30 LOSSES REQUIREMENT
-  // ══════════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE 30 LOSSES (6 Archetypes)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  BYSTIAL_LOSS: {
+    label: "Bystial",
+    lossesRequired: 30,
+    teamCondition: 30,
+    description:
+      "Main Deck: ≥ 3 Level 6 Dragon Monster (LIGHT/DARK). Team: ≥ 30/180 losses.",
+    checks: [
+      ({ mainDeck }) => {
+        const level6Dragon = mainDeck.filter(
+          (c) =>
+            c.isMonster &&
+            c.race === "Dragon" &&
+            c.level === 6 &&
+            (c.attribute === "LIGHT" || c.attribute === "DARK"),
+        );
+        const count = level6Dragon.length;
+        const required = 3;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Level 6 Dragon: ${count}`
+              : `✗ Level 6 Dragon không đủ: ${count}/${required}.`,
+          detail: `Lv6 Dragon: ${count}`,
+        };
+      },
+    ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Tú Thanh thì chỉ cần 20 losses
+      return teamMembers.includes("Tú Thanh") ? 20 : 30;
+    },
+  },
+
+  DRAGON_RULER_LOSS: {
+    label: "Dragon Ruler",
+    lossesRequired: 30,
+    teamCondition: 30,
+    description:
+      "Main Deck: ≥ 4 Attribute (FIRE/WATER/EARTH/WIND) + ≥ 10 Dragon Monster. Team: ≥ 30/180 losses.",
+    checks: [
+      ({ mainDeck }) => {
+        const dragons = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Dragon",
+        );
+        const attributes = new Set(
+          dragons.map((c) => c.attribute).filter(Boolean),
+        );
+        const hasAll = ["FIRE", "WATER", "EARTH", "WIND"].every((a) =>
+          attributes.has(a),
+        );
+        return {
+          pass: hasAll,
+          message: hasAll
+            ? `✓ 4 Attributes: ${[...attributes].join(", ")}`
+            : `✗ Attributes không đủ: ${[...attributes].join(", ")}.`,
+          detail: `Attributes: ${attributes.size}`,
+        };
+      },
+      ({ mainDeck }) => {
+        const dragons = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Dragon",
+        );
+        const count = dragons.length;
+        const required = 10;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Dragon: ${count}`
+              : `✗ Dragon không đủ: ${count}/${required}.`,
+          detail: `Dragon: ${count}`,
+        };
+      },
+    ],
+  },
+
+  METALFOES_LOSS: {
+    label: "Metalfoes",
+    lossesRequired: 30,
+    teamCondition: 30,
+    description:
+      "Main Deck: ≥ 8 Pendulum Monster. Extra Deck: ≥ 3 Fusion Monster. Team: ≥ 30/180 losses.",
+    checks: [
+      ({ mainDeck }) => {
+        const pendulum = mainDeck.filter((c) => c.isPendulum && c.isMonster);
+        const count = pendulum.length;
+        const required = 8;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Pendulum: ${count}`
+              : `✗ Pendulum không đủ: ${count}/${required}.`,
+          detail: `Pendulum: ${count}`,
+        };
+      },
+      ({ extraDeck }) => {
+        const fusions = extraDeck.filter((c) => c.isFusion);
+        const count = fusions.length;
+        const required = 3;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Fusion (Extra): ${count}`
+              : `✗ Fusion không đủ: ${count}/${required}.`,
+          detail: `Fusion: ${count}`,
+        };
+      },
+    ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Nguyễn Đình Tấn Phát thì chỉ cần 20 losses
+      return teamMembers.includes("Nguyễn Đình Tấn Phát") ? 20 : 30;
+    },
+  },
 
   RUNICK: {
     label: "Runick",
-    description: "Main Deck: ≥ 10 Spell Card + ≥ 10 Trap Card.",
+    lossesRequired: 30,
+    teamCondition: 30,
+    description:
+      "Main Deck: ≥ 10 Spell Card + ≥ 10 Trap Card. Team: ≥ 30/180 losses.",
     checks: [
       ({ mainDeck }) => {
         const spells = mainDeck.filter((c) => c.isSpell);
@@ -1600,8 +1595,8 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Spell Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Spell Card không đủ: ${count}/${required} lá.`,
+              ? `✓ Spell: ${count}`
+              : `✗ Spell không đủ: ${count}/${required}.`,
           detail: `Spell: ${count}`,
         };
       },
@@ -1613,17 +1608,51 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Trap Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Trap Card không đủ: ${count}/${required} lá.`,
+              ? `✓ Trap: ${count}`
+              : `✗ Trap không đủ: ${count}/${required}.`,
           detail: `Trap: ${count}`,
         };
       },
     ],
   },
 
+  SPYRAL_LOSS: {
+    label: "SPYRAL",
+    lossesRequired: 30,
+    teamCondition: 30,
+    description:
+      "Main Deck: ≥ 3 card có thể xem tay hoặc Top Deck. Team: ≥ 30/180 losses.",
+    checks: [
+      ({ mainDeck }) => {
+        const handView = mainDeck.filter(
+          (c) =>
+            c.desc?.toLowerCase().includes("view") ||
+            c.desc?.toLowerCase().includes("hand") ||
+            c.desc?.toLowerCase().includes("top"),
+        );
+        const count = handView.length;
+        const required = 3;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Hand/Deck view: ${count}`
+              : `✗ Hand/Deck view không đủ: ${count}/${required}.`,
+          detail: `View cards: ${count}`,
+        };
+      },
+    ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Chương Trần thì chỉ cần 20 losses
+      return teamMembers.includes("Chương Trần") ? 20 : 30;
+    },
+  },
+
   YUBEL: {
     label: "Yubel",
-    description: "Main Deck: ≥ 10 Fiend Monster.",
+    lossesRequired: 30,
+    teamCondition: 30,
+    description: "Main Deck: ≥ 10 Fiend Monster. Team: ≥ 30/180 losses.",
     checks: [
       ({ mainDeck }) => {
         const fiends = mainDeck.filter(
@@ -1635,41 +1664,62 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Fiend Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Fiend Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Fiend: ${count}`
+              : `✗ Fiend không đủ: ${count}/${required}.`,
           detail: `Fiend: ${count}`,
         };
       },
     ],
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // 40 LOSSES REQUIREMENT
-  // ══════════════════════════════════════════════════════════════════════════
-
-  ENNEACRAFT: {
-    label: "Enneacraft",
-    description: "Main Deck: ≥ 12 Spell Card.",
+  MANNADIUM_LOSS: {
+    label: "Mannadium",
+    lossesRequired: 30,
+    teamCondition: 30,
+    description:
+      "Main Deck: ≥ 4 Archetype khác nhau + ≥ 8 Tuner Monster. Team: ≥ 30/180 losses.",
     checks: [
       ({ mainDeck }) => {
-        const spells = mainDeck.filter((c) => c.isSpell);
-        const count = spells.length;
-        const required = 12;
+        const archetypes = new Set(
+          mainDeck.map((c) => c.archetype).filter(Boolean),
+        );
+        const count = archetypes.size;
+        const required = 4;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Spell Card: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Spell Card không đủ: ${count}/${required} lá.`,
-          detail: `Spell: ${count}`,
+              ? `✓ Archetype: ${count}`
+              : `✗ Archetype không đủ: ${count}/${required}.`,
+          detail: `Archetypes: ${count}`,
+        };
+      },
+      ({ mainDeck }) => {
+        const tuners = mainDeck.filter((c) => c.isMonster && c.isTuner);
+        const count = tuners.length;
+        const required = 8;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Tuner: ${count}`
+              : `✗ Tuner không đủ: ${count}/${required}.`,
+          detail: `Tuner: ${count}`,
         };
       },
     ],
   },
 
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE 40 LOSSES (3 Archetypes)
+  // ═════════════════════════════════════════════════════════════════════════
+
   DINOSAUR: {
-    label: "Dinosaur Monster Type",
-    description: "Main Deck: ≥ 10 card với tên khác nhau.",
+    label: "Dinosaur",
+    lossesRequired: 40,
+    teamCondition: 40,
+    description:
+      "Main Deck: ≥ 10 card với tên khác nhau. Team: ≥ 40/180 losses.",
     checks: [
       ({ mainDeck }) => {
         const uniqueNames = new Set(
@@ -1681,61 +1731,134 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Unique card name: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Unique card name không đủ: ${count}/${required} loại.`,
+              ? `✓ Unique names: ${count}`
+              : `✗ Unique names không đủ: ${count}/${required}.`,
           detail: `Unique: ${count}`,
         };
       },
     ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Nos Karkin thì chỉ cần 30 losses
+      return teamMembers.includes("Nos Karkin") ? 30 : 40;
+    },
   },
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // 100 LOSSES REQUIREMENT
-  // ══════════════════════════════════════════════════════════════════════════
-
-  TEARLAMENTS: {
-    label: "Tearlaments (Full Power)",
-    description: "Main Deck: ≥ 20 WATER/DARK/Aqua Monster.",
+  ENNEACRAFT: {
+    label: "Enneacraft",
+    lossesRequired: 40,
+    teamCondition: 40,
+    description: "Main Deck: ≥ 12 Spell Card. Team: ≥ 40/180 losses.",
     checks: [
       ({ mainDeck }) => {
-        const water = mainDeck.filter(
-          (c) =>
-            c.isMonster &&
-            (c.attribute === "WATER" ||
-              c.attribute === "DARK" ||
-              c.race === "Aqua"),
-        );
-        const count = water.length;
-        const required = 20;
+        const spells = mainDeck.filter((c) => c.isSpell);
+        const count = spells.length;
+        const required = 12;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ WATER/DARK/Aqua Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ WATER/DARK/Aqua Monster không đủ: ${count}/${required} lá.`,
-          detail: `WATER/DARK/Aqua: ${count}`,
+              ? `✓ Spell: ${count}`
+              : `✗ Spell không đủ: ${count}/${required}.`,
+          detail: `Spell: ${count}`,
+        };
+      },
+    ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Súc Vật Đại Dương thì chỉ cần 30 losses
+      return teamMembers.includes("Súc Vật Đại Dương") ? 30 : 40;
+    },
+  },
+
+  MATHMECH_LOSS: {
+    label: "Mathmech",
+    lossesRequired: 50,
+    teamCondition: 50,
+    description:
+      "Main Deck: ≥ 10 Cyberse Monster. Extra Deck: ≥ 1 Xyz + ≥ 1 Link Monster. Team: ≥ 50/180 losses.",
+    checks: [
+      ({ mainDeck }) => {
+        const cyberse = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Cyberse",
+        );
+        const count = cyberse.length;
+        const required = 10;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Cyberse: ${count}`
+              : `✗ Cyberse không đủ: ${count}/${required}.`,
+          detail: `Cyberse: ${count}`,
+        };
+      },
+      ({ extraDeck }) => {
+        const xyz = extraDeck.filter((c) => c.isXyz);
+        const link = extraDeck.filter((c) => c.isLink);
+        const pass = xyz.length >= 1 && link.length >= 1;
+        return {
+          pass,
+          message: pass
+            ? `✓ Xyz: ${xyz.length}, Link: ${link.length}`
+            : `✗ Xyz or Link: ${xyz.length}/${1}, Link: ${link.length}/${1}.`,
+          detail: `Xyz: ${xyz.length} | Link: ${link.length}`,
         };
       },
     ],
   },
 
-  ZOODIAC: {
-    label: "Zoodiac (Full Power)",
-    description: "Extra Deck: ≥ 5 Xyz Monster. Main Deck: ≥ 5 Beast Monster.",
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE 60 LOSSES (1 Archetype)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  UNCHAINED_LOSS: {
+    label: "Unchained",
+    lossesRequired: 60,
+    teamCondition: 60,
+    description:
+      "Main Deck: ≥ 10 Fiend Monster + ≥ 5 Trap Card. Team: ≥ 60/180 losses.",
     checks: [
-      ({ extraDeck }) => {
-        const xyzs = extraDeck.filter((c) => c.isXyz);
-        const count = xyzs.length;
+      ({ mainDeck }) => {
+        const fiends = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Fiend",
+        );
+        const count = fiends.length;
+        const required = 10;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Fiend: ${count}`
+              : `✗ Fiend không đủ: ${count}/${required}.`,
+          detail: `Fiend: ${count}`,
+        };
+      },
+      ({ mainDeck }) => {
+        const traps = mainDeck.filter((c) => c.isTrap);
+        const count = traps.length;
         const required = 5;
         return {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Xyz Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Xyz Monster không đủ: ${count}/${required} lá.`,
-          detail: `Xyz: ${count}`,
+              ? `✓ Trap: ${count}`
+              : `✗ Trap không đủ: ${count}/${required}.`,
+          detail: `Trap: ${count}`,
         };
       },
+    ],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE 100 LOSSES (1 Archetype)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  ZOODIAC_FULL_POWER: {
+    label: "Zoodiac (Full Power)",
+    lossesRequired: 100,
+    teamCondition: 100,
+    description:
+      "Extra Deck: ≥ 5 Xyz Monster. Main Deck: ≥ 5 Beast Monster. Team: ≥ 100/180 losses + Top 3 ranking.",
+    checks: [
       ({ mainDeck }) => {
         const beasts = mainDeck.filter(
           (c) => c.isMonster && c.race === "Beast",
@@ -1746,120 +1869,153 @@ export const ARCHETYPE_RULES = {
           pass: count >= required,
           message:
             count >= required
-              ? `✓ Beast Monster: ${count} (yêu cầu ≥ ${required})`
-              : `✗ Beast Monster không đủ: ${count}/${required} lá.`,
+              ? `✓ Beast: ${count}`
+              : `✗ Beast không đủ: ${count}/${required}.`,
           detail: `Beast: ${count}`,
+        };
+      },
+      ({ extraDeck }) => {
+        const xyz = extraDeck.filter((c) => c.isXyz);
+        const count = xyz.length;
+        const required = 5;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Xyz (Extra): ${count}`
+              : `✗ Xyz không đủ: ${count}/${required}.`,
+          detail: `Xyz: ${count}`,
         };
       },
     ],
   },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // REQUIRE BOTH WINS AND LOSSES (1 Archetype)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  TEARLAMENTS_FULL_POWER: {
+    label: "Tearlaments (Full Power)",
+    winsRequired: 60,
+    lossesRequired: 60,
+    teamCondition: 120,
+    description:
+      "Complete Scareclaw + Mannadium + Kashtira quests. Win <2000 LP. Alternate win/loss ≥ 3 times. Team: 60W/60L at 120 total.",
+    checks: [
+      ({ mainDeck }) => {
+        const desc =
+          "Quest 1: Unlock & use Scareclaw to win 3+ times.\nQuest 2: Unlock & use Mannadium to win 3+ times.\nQuest 3: Unlock & use Kashtira to win 3+ times.\nQuest 4: Win with LP < 2000.\nQuest 5: Achieve win/loss alternation ≥ 3 times.";
+        return {
+          pass: false,
+          message: `⚠ Manual verification required:\n${desc}`,
+          detail: "Requires manual validation",
+        };
+      },
+    ],
+    respectCondition: (teamMembers) => {
+      // Nếu có Theodore Hamilton thì được chênh lệch 5 trận trên mỗi điều kiện
+      return teamMembers.includes("Theodore Hamilton") ? 5 : 0;
+    },
+  },
 };
 
-// ─── Main Validator Function ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Chạy toàn bộ checks của một archetype cho một bộ deck.
- *
- * @param {string} archetypeKey   - Key trong ARCHETYPE_RULES (e.g. "MALICE")
- * @param {{ mainDeck: CardData[], extraDeck: CardData[], sideDeck: CardData[] }} deck
- * @returns {{ archetypeLabel: string, overallPass: boolean, results: CheckResult[] }}
+ * Get all archetypes grouped by requirement type
  */
-export function validateDeck(archetypeKey, deck) {
-  const rule = ARCHETYPE_RULES[archetypeKey];
+export function getArchetypesByRequirement() {
+  const grouped = {
+    wins10: [],
+    wins20: [],
+    wins30: [],
+    wins40: [],
+    wins50: [],
+    losses20: [],
+    losses30: [],
+    losses40: [],
+    losses50: [],
+    losses60: [],
+    losses100: [],
+    both: [],
+  };
 
-  if (!rule) {
-    throw new Error(`Không tìm thấy rule cho archetype: "${archetypeKey}"`);
-  }
-
-  const results = rule.checks.map((checkFn, i) => {
-    try {
-      const result = checkFn(deck);
-      return {
-        index: i + 1,
-        pass: result.pass ?? false,
-        message: result.message ?? "(Không có message)",
-        detail: result.detail ?? "",
-      };
-    } catch (err) {
-      // Catch lỗi từng check riêng để không làm crash toàn bộ validation
-      console.error(
-        `[RulesEngine] Lỗi tại check #${i + 1} của ${archetypeKey}:`,
-        err,
-      );
-      return {
-        index: i + 1,
-        pass: false,
-        message: `✗ Lỗi khi thực thi check #${i + 1}: ${err.message}`,
-        detail: "",
-      };
+  Object.entries(ARCHETYPE_RULES).forEach(([key, archetype]) => {
+    if (archetype.winsRequired && archetype.lossesRequired) {
+      grouped.both.push({ key, ...archetype });
+    } else if (archetype.winsRequired) {
+      const group = `wins${archetype.winsRequired}`;
+      if (grouped[group]) grouped[group].push({ key, ...archetype });
+    } else if (archetype.lossesRequired) {
+      const group = `losses${archetype.lossesRequired}`;
+      if (grouped[group]) grouped[group].push({ key, ...archetype });
     }
   });
 
-  const overallPass = results.every((r) => r.pass);
+  return grouped;
+}
+
+/**
+ * Validate archetype conditions
+ */
+export function validateArchetype(
+  archetypeKey,
+  mainDeck,
+  extraDeck,
+  sideDeck,
+  teamWins,
+  teamLosses,
+  teamMembers = [],
+) {
+  const archetype = ARCHETYPE_RULES[archetypeKey];
+  if (!archetype) return null;
+
+  const allCards = { mainDeck, extraDeck, sideDeck };
+  const checkResults = archetype.checks.map((check) => check(allCards));
+
+  const deckPasses = checkResults.every((r) => r.pass);
+
+  // Team condition check
+  const requiresWins = archetype.winsRequired > 0;
+  const requiresLosses = archetype.lossesRequired > 0;
+
+  let winsAdjustment = 0;
+  let lossesAdjustment = 0;
+
+  if (archetype.respectCondition) {
+    const result = archetype.respectCondition(teamMembers);
+    if (typeof result === "number") {
+      if (requiresWins) winsAdjustment = archetype.winsRequired - result;
+      if (requiresLosses) lossesAdjustment = archetype.lossesRequired - result;
+    } else if (result === true) {
+      winsAdjustment = archetype.winsRequired;
+      lossesAdjustment = archetype.lossesRequired;
+    }
+  }
+
+  const adjustedWinsRequired = archetype.winsRequired - winsAdjustment;
+  const adjustedLossesRequired = archetype.lossesRequired - lossesAdjustment;
+
+  const winsPasses = !requiresWins || teamWins >= adjustedWinsRequired;
+  const lossesPasses = !requiresLosses || teamLosses >= adjustedLossesRequired;
+
+  const teamPasses = winsPasses && lossesPasses;
+  const isEligible = deckPasses && teamPasses;
 
   return {
-    archetypeLabel: rule.label,
-    archetypeDescription: rule.description,
-    overallPass,
-    results,
-    // Thống kê nhanh
-    summary: {
-      total: results.length,
-      passed: results.filter((r) => r.pass).length,
-      failed: results.filter((r) => !r.pass).length,
-    },
+    archetypeLabel: archetype.label,
+    deckConditionMet: deckPasses,
+    teamConditionMet: teamPasses,
+    winsConditionMet: winsPasses,
+    lossesConditionMet: lossesPasses,
+    eligible: isEligible,
+    checks: checkResults,
+    winsRequired: adjustedWinsRequired,
+    lossesRequired: adjustedLossesRequired,
+    winsAdjustment,
+    lossesAdjustment,
+    respectBonusApplied: winsAdjustment > 0 || lossesAdjustment > 0,
   };
 }
-
-// ─── Helper Functions (dùng để viết rule nhanh hơn) ──────────────────────────
-
-/**
- * Đếm card trong deck thỏa mãn một predicate.
- * @param {CardData[]} deck
- * @param {(card: CardData) => boolean} predicate
- * @returns {number}
- */
-export function count(deck, predicate) {
-  return deck.filter(predicate).length;
-}
-
-/**
- * Lấy tập hợp unique values của một property trên mảng card.
- * Ví dụ: uniqueSet(mainDeck, c => c.attribute) → Set { "DARK", "LIGHT" }
- * @param {CardData[]} deck
- * @param {(card: CardData) => string} selector
- * @returns {Set<string>}
- */
-export function uniqueSet(deck, selector) {
-  return new Set(deck.map(selector).filter(Boolean));
-}
-
-/**
- * Tạo một check đơn giản dạng "count >= min".
- * @param {string} label
- * @param {(card: CardData) => boolean} predicate
- * @param {number} min
- * @param {"mainDeck"|"extraDeck"|"sideDeck"} deckKey
- */
-export function minCountCheck(label, predicate, min, deckKey = "mainDeck") {
-  return (decks) => {
-    const deck = decks[deckKey] ?? [];
-    const n = count(deck, predicate);
-    const pass = n >= min;
-    return {
-      pass,
-      message: pass
-        ? `✓ ${label}: ${n} (yêu cầu ≥ ${min})`
-        : `✗ ${label}: chỉ có ${n}/${min} lá.`,
-      detail: `${label}: ${n}`,
-    };
-  };
-}
-
-/**
- * @typedef {Object} CheckResult
- * @property {number}  index
- * @property {boolean} pass
- * @property {string}  message
- * @property {string}  detail
- */
