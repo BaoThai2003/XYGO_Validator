@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { validateDeckBanlist } from "../utils/banlist";
+import { ARCHETYPE_RULES, calculateArchetypeBonus } from "@/utils/rulesEngine";
 
 // All team members available for respect bonuses
 const TEAM_MEMBERS = [
@@ -42,7 +43,7 @@ export default function Page() {
   const [step, setStep] = useState(1);
   const [teamWins, setTeamWins] = useState("");
   const [teamLosses, setTeamLosses] = useState("");
-  const [unlockedArchetypes, setUnlockedArchetypes] = useState("");
+  const [selectedArchetypes, setSelectedArchetypes] = useState([]);
   const [deckString, setDeckString] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
@@ -53,8 +54,17 @@ export default function Page() {
   const [filterType, setFilterType] = useState("all");
   const textareaRef = useRef(null);
 
-  const additionalWins =
-    Math.max(0, parseInt(unlockedArchetypes || 0) - 10) * 5;
+  // Calculate bonuses for selected archetypes
+  const archetypeBonuses = calculateArchetypeBonus(selectedArchetypes);
+
+  // Get list of all available archetype keys for checkbox list
+  const allArchetypeKeys = Object.keys(ARCHETYPE_RULES).sort();
+
+  // Calculate total additional wins across all selected archetypes (for display)
+  const totalAdditionalWins = Object.values(archetypeBonuses).reduce(
+    (sum, bonus) => sum + bonus.total,
+    0,
+  );
 
   const i18n = {
     title: "Yu-Gi-Oh! Trận Đấu Kiểm Tra Deck",
@@ -151,6 +161,8 @@ export default function Page() {
           teamMembers: selectedTeamMembers,
           teamWins: parseInt(teamWins) || 0,
           teamLosses: parseInt(teamLosses) || 0,
+          selectedArchetypes: selectedArchetypes,
+          archetypeBonuses: archetypeBonuses,
         }),
       });
       const data = await res.json();
@@ -197,9 +209,10 @@ export default function Page() {
       teamStats: {
         wins: parseInt(teamWins) || 0,
         losses: parseInt(teamLosses) || 0,
-        unlockedArchetypes: parseInt(unlockedArchetypes) || 0,
+        selectedArchetypes: selectedArchetypes,
+        archetypeBonuses: archetypeBonuses,
         selectedTeamMembers,
-        additionalWins,
+        totalAdditionalWins,
       },
       deckStats,
       banlistValidation: banlistResults,
@@ -219,7 +232,7 @@ export default function Page() {
     setStep(1);
     setTeamWins("");
     setTeamLosses("");
-    setUnlockedArchetypes("");
+    setSelectedArchetypes([]);
     setDeckString("");
     setResults(null);
     setDeckStats(null);
@@ -312,8 +325,9 @@ export default function Page() {
               </div>
 
               <div className="grid lg:grid-cols-3 gap-8">
-                {/* Input Fields */}
+                {/* Input Fields + Archetype Selection */}
                 <div className="lg:col-span-1 space-y-6">
+                  {/* Team Wins and Losses */}
                   {[
                     {
                       label: i18n.teamWinsLabel,
@@ -324,11 +338,6 @@ export default function Page() {
                       label: i18n.teamLossesLabel,
                       value: teamLosses,
                       setter: setTeamLosses,
-                    },
-                    {
-                      label: i18n.unlockedArchetypesLabel,
-                      value: unlockedArchetypes,
-                      setter: setUnlockedArchetypes,
                     },
                   ].map((field, idx) => (
                     <div key={idx}>
@@ -358,7 +367,68 @@ export default function Page() {
                     </div>
                   ))}
 
-                  {additionalWins > 0 && (
+                  {/* Archetype Selection Checkboxes */}
+                  <div>
+                    <label
+                      style={{
+                        color: "#a5b4fc",
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      {i18n.unlockedArchetypesLabel} (
+                      {selectedArchetypes.length})
+                    </label>
+                    <div
+                      className="rounded-xl p-4 space-y-3 max-h-64 overflow-y-auto glass-light"
+                      style={{
+                        background: "rgba(2, 8, 22, 0.85)",
+                        border: "1px solid rgba(100,116,139,0.4)",
+                        backdropFilter: "blur(10px)",
+                      }}
+                    >
+                      {allArchetypeKeys.map((archKey) => {
+                        const archData = ARCHETYPE_RULES[archKey];
+                        return (
+                          <label
+                            key={archKey}
+                            className="flex items-center cursor-pointer hover:opacity-80 transition-opacity"
+                            style={{ color: "#f1f5f9" }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedArchetypes.includes(archKey)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedArchetypes([
+                                    ...selectedArchetypes,
+                                    archKey,
+                                  ]);
+                                } else {
+                                  setSelectedArchetypes(
+                                    selectedArchetypes.filter(
+                                      (a) => a !== archKey,
+                                    ),
+                                  );
+                                }
+                              }}
+                              className="mr-3 w-4 h-4 rounded"
+                              style={{
+                                accentColor: "#34d399",
+                              }}
+                            />
+                            <span style={{ fontSize: "12px" }}>
+                              {archData.label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {totalAdditionalWins > 0 && (
                     <div
                       className="p-4 rounded-lg border"
                       style={{
@@ -369,26 +439,39 @@ export default function Page() {
                         fontWeight: 600,
                       }}
                     >
-                      Scaling: +{additionalWins} Wins
+                      <div>Scaling: +{totalAdditionalWins} Wins</div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          opacity: 0.9,
+                          marginTop: "4px",
+                        }}
+                      >
+                        ({selectedArchetypes.length} archetypes)
+                      </div>
                     </div>
                   )}
 
                   <button
                     onClick={() => setStep(2)}
-                    disabled={!teamWins || !teamLosses || !unlockedArchetypes}
-                    className="w-full px-8 py-4 rounded-xl text-lg font-bold uppercase tracking-wide transition-all"
+                    disabled={
+                      !teamWins ||
+                      !teamLosses ||
+                      selectedArchetypes.length === 0
+                    }
+                    className="w-full px-8 py-4 rounded-xl text-lg font-bold uppercase tracking-wide transition-all animate-button-glow"
                     style={{
                       background:
-                        teamWins && teamLosses && unlockedArchetypes
+                        teamWins && teamLosses && selectedArchetypes.length > 0
                           ? "linear-gradient(135deg, #34d399 0%, #10b981 100%)"
                           : "rgba(255,255,255,0.04)",
                       color:
-                        teamWins && teamLosses && unlockedArchetypes
+                        teamWins && teamLosses && selectedArchetypes.length > 0
                           ? "#050a14"
                           : "rgba(100,116,139,0.6)",
                       border: "none",
                       cursor:
-                        teamWins && teamLosses && unlockedArchetypes
+                        teamWins && teamLosses && selectedArchetypes.length > 0
                           ? "pointer"
                           : "not-allowed",
                     }}
@@ -400,7 +483,7 @@ export default function Page() {
                 {/* Summary */}
                 <div className="lg:col-span-2">
                   <div
-                    className="rounded-2xl p-8"
+                    className="rounded-2xl p-8 glass-glow animate-fade-in"
                     style={{
                       background:
                         "linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(99,102,241,0.05) 100%)",
@@ -430,12 +513,15 @@ export default function Page() {
                       },
                       {
                         label: "Archetypes Mở Khóa:",
-                        value: unlockedArchetypes || "—",
+                        value: selectedArchetypes.length || "—",
                         color: "#a5b4fc",
                       },
                       {
-                        label: "Scaling Adds:",
-                        value: additionalWins > 0 ? `+${additionalWins}` : "0",
+                        label: "Tổng Bonus Scaling:",
+                        value:
+                          totalAdditionalWins > 0
+                            ? `+${totalAdditionalWins}`
+                            : "0",
                         color: "#facc15",
                       },
                     ].map((item, idx) => (
@@ -458,6 +544,74 @@ export default function Page() {
                         </span>
                       </div>
                     ))}
+
+                    {/* Bonus Breakdown */}
+                    {selectedArchetypes.length > 0 &&
+                      Object.keys(archetypeBonuses).some(
+                        (arch) => archetypeBonuses[arch].total > 0,
+                      ) && (
+                        <div
+                          style={{
+                            marginTop: "20px",
+                            paddingTop: "20px",
+                            borderTop: "1px solid rgba(99,102,241,0.2)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              color: "#a5b4fc",
+                              fontSize: "14px",
+                              fontWeight: 600,
+                              marginBottom: "12px",
+                            }}
+                          >
+                            Chi Tiết Bonus:
+                          </div>
+                          <div
+                            style={{
+                              color: "rgba(148,163,184,0.9)",
+                              fontSize: "12px",
+                              lineHeight: "1.8",
+                            }}
+                          >
+                            <div>
+                              • Scaling: ({selectedArchetypes.length} - 10) × 5
+                              = {Math.max(0, selectedArchetypes.length - 10)} ×
+                              5 wins
+                            </div>
+                            {["SCARECLAW", "MANNADIUM_LOSS", "KASHTIRA"].filter(
+                              (arch) => selectedArchetypes.includes(arch),
+                            ).length > 0 && (
+                              <div style={{ marginTop: "8px" }}>
+                                {[
+                                  "SCARECLAW",
+                                  "MANNADIUM_LOSS",
+                                  "KASHTIRA",
+                                ].filter((arch) =>
+                                  selectedArchetypes.includes(arch),
+                                ).length === 1 && (
+                                  <div>
+                                    • Special: 1 của 3 archetype → +5 bonus cho
+                                    2 cái còn lại
+                                  </div>
+                                )}
+                                {[
+                                  "SCARECLAW",
+                                  "MANNADIUM_LOSS",
+                                  "KASHTIRA",
+                                ].filter((arch) =>
+                                  selectedArchetypes.includes(arch),
+                                ).length === 2 && (
+                                  <div>
+                                    • Special: 2 của 3 archetype → +10 bonus cho
+                                    cái còn lại
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                   </div>
                 </div>
               </div>
@@ -469,7 +623,7 @@ export default function Page() {
             <div className="animate-fade-in space-y-8">
               {/* Team Member Selection */}
               <div
-                className="rounded-2xl p-8"
+                className="rounded-2xl p-8 glass-glow"
                 style={{
                   background:
                     "linear-gradient(135deg, rgba(168,85,247,0.1) 0%, rgba(168,85,247,0.05) 100%)",
@@ -539,7 +693,7 @@ export default function Page() {
 
               {/* Deck Input Section */}
               <div
-                className="rounded-2xl overflow-hidden"
+                className="rounded-2xl overflow-hidden glass-glow"
                 style={{
                   background:
                     "linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(99,102,241,0.05) 100%)",
@@ -623,7 +777,7 @@ export default function Page() {
                     <button
                       onClick={handleValidate}
                       disabled={loading || !deckString.trim()}
-                      className="flex-1 px-8 py-4 rounded-xl text-lg font-bold uppercase tracking-wide transition-all"
+                      className="flex-1 px-8 py-4 rounded-xl text-lg font-bold uppercase tracking-wide transition-all animate-button-glow"
                       style={{
                         background:
                           loading || !deckString.trim()
@@ -722,7 +876,7 @@ export default function Page() {
 
               {/* Filter */}
               <div
-                className="rounded-2xl p-6"
+                className="rounded-2xl p-6 glass-glow"
                 style={{
                   background:
                     "linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(59,130,246,0.05) 100%)",
@@ -782,7 +936,7 @@ export default function Page() {
                     {passedArchetypes.map(({ key, result }) => (
                       <div
                         key={key}
-                        className="rounded-xl p-6"
+                        className="rounded-xl p-6 glass-glow"
                         style={{
                           background:
                             "linear-gradient(135deg, rgba(52,211,153,0.1) 0%, rgba(52,211,153,0.05) 100%)",
@@ -846,7 +1000,7 @@ export default function Page() {
                     {failedArchetypes.map(({ key, result }) => (
                       <div
                         key={key}
-                        className="rounded-xl p-5"
+                        className="rounded-xl p-5 glass-light"
                         style={{
                           background:
                             "linear-gradient(135deg, rgba(30,30,40,0.95) 0%, rgba(20,20,32,0.98) 100%)",

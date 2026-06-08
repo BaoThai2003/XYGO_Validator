@@ -1243,10 +1243,10 @@ export const ARCHETYPE_RULES = {
 
   SCARECLAW: {
     label: "Scareclaw",
-    lossesRequired: 20,
-    teamCondition: 20,
+    lossesRequired: 10,
+    teamCondition: 10,
     description:
-      "Main Deck: ≥ 10 Beast/Beast-Warrior Monster. Extra Deck: ≥ 3 Link Monster. Team: ≥ 20/180 losses.",
+      "Main Deck: ≥ 10 Beast/Beast-Warrior Monster. Extra Deck: ≥ 3 Link Monster. Team: ≥ 10/180 losses.",
     checks: [
       ({ mainDeck }) => {
         const beastWarrior = mainDeck.filter(
@@ -2063,6 +2063,79 @@ export function validateArchetype(
     lossesAdjustment,
     respectBonusApplied: winsAdjustment > 0 || lossesAdjustment > 0,
   };
+}
+
+/**
+ * Calculate archetype unlock bonuses based on selected archetypes
+ *
+ * Scaling Formula:
+ * - First 10 archetypes: +0 wins
+ * - From 11th onwards: (count - 10) × 5 wins per archetype
+ *
+ * Special Interactions (Scareclaw/Mannadium/Kashtira):
+ * - If 1 of 3 selected: other 2 get +5 wins each
+ * - If 2 of 3 selected: remaining 1 gets +10 wins
+ * - If all 3 selected: no additional bonus
+ */
+export function calculateArchetypeBonus(selectedArchetypes = []) {
+  const bonusMap = {}; // archetype -> { scalingBonus, specialBonus, total }
+
+  // Initialize all selected archetypes with 0 bonus
+  selectedArchetypes.forEach((arch) => {
+    bonusMap[arch] = { scalingBonus: 0, specialBonus: 0, total: 0 };
+  });
+
+  // 1. Calculate scaling bonus (from 11th archetype onwards)
+  // Each archetype gets (count - 10) * 5 scaling bonus (NOT per archetype, but SHARED)
+  const scalingBonusPerArchetype =
+    Math.max(0, selectedArchetypes.length - 10) * 5;
+
+  // Only archetypes from 11th onwards get scaling bonus
+  // For now, apply to first (count-10) archetypes
+  const archeotypesWithScaling = Math.max(0, selectedArchetypes.length - 10);
+  for (
+    let i = 0;
+    i < archeotypesWithScaling && i < selectedArchetypes.length;
+    i++
+  ) {
+    const idx = 10 + i; // Start from 11th (index 10)
+    if (idx < selectedArchetypes.length) {
+      bonusMap[selectedArchetypes[idx]].scalingBonus = 5;
+    }
+  }
+
+  // 2. Calculate special interaction bonuses for Scareclaw/Mannadium/Kashtira
+  const specialTriad = ["SCARECLAW", "MANNADIUM_LOSS", "KASHTIRA"];
+  const selectedInTriad = specialTriad.filter((arch) =>
+    selectedArchetypes.includes(arch),
+  );
+
+  if (selectedInTriad.length === 1) {
+    // If 1 of 3 selected: other 2 get +5 wins each
+    const selectedOne = selectedInTriad[0];
+    specialTriad.forEach((arch) => {
+      if (arch !== selectedOne && bonusMap[arch]) {
+        bonusMap[arch].specialBonus = 5;
+      }
+    });
+  } else if (selectedInTriad.length === 2) {
+    // If 2 of 3 selected: remaining 1 gets +10 wins
+    const unselected = specialTriad.find(
+      (arch) => !selectedInTriad.includes(arch),
+    );
+    if (bonusMap[unselected]) {
+      bonusMap[unselected].specialBonus = 10;
+    }
+  }
+  // If all 3 are selected: no additional bonus (no special bonus calculation)
+
+  // Calculate totals
+  Object.keys(bonusMap).forEach((arch) => {
+    bonusMap[arch].total =
+      bonusMap[arch].scalingBonus + bonusMap[arch].specialBonus;
+  });
+
+  return bonusMap;
 }
 
 /**

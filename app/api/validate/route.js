@@ -15,7 +15,11 @@
 
 import { NextResponse } from "next/server";
 import { getCardDatabase } from "@/utils/ygoprodeck";
-import { validateDeck, ARCHETYPE_RULES } from "@/utils/rulesEngine";
+import {
+  validateDeck,
+  ARCHETYPE_RULES,
+  calculateArchetypeBonus,
+} from "@/utils/rulesEngine";
 import { validateDeckBanlist } from "@/utils/banlist";
 
 // ─── YDKE Parser ──────────────────────────────────────────────────────────────
@@ -215,6 +219,56 @@ function mapIdsToCards(ids, db) {
 
 // ─── Route Handler ────────────────────────────────────────────────────────────
 
+// Helper function to apply archetype bonuses to validation results
+function applyArchetypeBonuses(
+  validationResult,
+  archetypeKey,
+  bonusMap,
+  teamWins,
+  teamLosses,
+) {
+  if (!bonusMap[archetypeKey] || bonusMap[archetypeKey].total === 0) {
+    return validationResult;
+  }
+
+  const bonus = bonusMap[archetypeKey].total;
+
+  const newWinsRequired = Math.max(
+    0,
+    (validationResult.winsRequired || 0) - bonus,
+  );
+  const newLossesRequired = Math.max(
+    0,
+    (validationResult.lossesRequired || 0) - bonus,
+  );
+
+  // Recalculate conditions with new requirements
+  const winsConditionMet =
+    validationResult.winsConditionMet === false
+      ? false
+      : !validationResult.winsRequired || teamWins >= newWinsRequired;
+  const lossesConditionMet =
+    validationResult.lossesConditionMet === false
+      ? false
+      : !validationResult.lossesRequired || teamLosses >= newLossesRequired;
+  const teamConditionMet = winsConditionMet && lossesConditionMet;
+
+  return {
+    ...validationResult,
+    winsRequired: newWinsRequired,
+    lossesRequired: newLossesRequired,
+    winsConditionMet,
+    lossesConditionMet,
+    teamConditionMet,
+    overallPass: validationResult.deckConditionMet && teamConditionMet,
+    bonusApplied: {
+      scalingBonus: bonusMap[archetypeKey].scalingBonus,
+      specialBonus: bonusMap[archetypeKey].specialBonus,
+      total: bonus,
+    },
+  };
+}
+
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => null);
@@ -233,6 +287,8 @@ export async function POST(request) {
       teamMembers = [],
       teamWins = 0,
       teamLosses = 0,
+      selectedArchetypes = [],
+      archetypeBonuses = {},
     } = body;
 
     // Validate input
@@ -322,6 +378,13 @@ export async function POST(request) {
     if (shouldValidateAll) {
       // Validate against ALL archetypes
       const allResults = {};
+
+      // Calculate bonuses if selectedArchetypes provided
+      const bonusMap =
+        selectedArchetypes.length > 0
+          ? calculateArchetypeBonus(selectedArchetypes)
+          : {};
+
       for (const archetypeKey of Object.keys(ARCHETYPE_RULES)) {
         try {
           const validationResult = validateDeck(
@@ -335,7 +398,15 @@ export async function POST(request) {
             parseInt(teamLosses) || 0,
             teamMembers,
           );
-          allResults[archetypeKey] = validationResult;
+
+          // Apply bonuses if this archetype is selected
+          allResults[archetypeKey] = applyArchetypeBonuses(
+            validationResult,
+            archetypeKey,
+            bonusMap,
+            parseInt(teamWins) || 0,
+            parseInt(teamLosses) || 0,
+          );
         } catch (ruleErr) {
           allResults[archetypeKey] = {
             error: `Lỗi Rules Engine: ${ruleErr.message}`,
@@ -366,6 +437,10 @@ export async function POST(request) {
           extraCount: extraDeck.length,
           sideCount: sideDeck.length,
           unknownCards: allUnknown,
+        },
+        bonuses: {
+          selectedArchetypes,
+          archetypeBonuses: bonusMap,
         },
         warnings:
           allUnknown.length > 0
