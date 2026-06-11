@@ -1,12 +1,7 @@
 /**
  * app/api/cards/route.js
- * ─────────────────────────────────────────────────────────────────────────────
  * GET /api/cards — Trả về trạng thái cache Card Database.
- * Gọi endpoint này để khởi động cache trước (warm-up).
- * Ngoài ra có thể dùng để kiểm tra số card đã cache.
- * ─────────────────────────────────────────────────────────────────────────────
  */
-
 import { NextResponse } from "next/server";
 import { getCardDatabase } from "@/utils/ygoprodeck";
 
