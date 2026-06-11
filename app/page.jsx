@@ -438,11 +438,14 @@ export default function Page() {
                       {selectedArchetypes.length})
                     </label>
                     <div
-                      className="rounded-xl p-4 space-y-3 max-h-64 overflow-y-auto glass-light"
+                      className="rounded-xl p-4 max-h-64 overflow-y-auto glass-light"
                       style={{
                         background: "rgba(2, 8, 22, 0.85)",
                         border: "1px solid rgba(100,116,139,0.4)",
                         backdropFilter: "blur(10px)",
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, 1fr)",
+                        gap: "8px",
                       }}
                     >
                       {allArchetypeKeys.map((archKey) => {
@@ -470,10 +473,16 @@ export default function Page() {
                                   );
                                 }
                               }}
-                              className="mr-3 w-4 h-4 rounded"
-                              style={{ accentColor: "#34d399" }}
+                              style={{
+                                accentColor: "#34d399",
+                                width: "17px",
+                                height: "17px",
+                                flexShrink: 0,
+                                marginRight: "6px",
+                                cursor: "pointer",
+                              }}
                             />
-                            <span style={{ fontSize: "12px" }}>
+                            <span style={{ fontSize: "11px", lineHeight: 1.3 }}>
                               {archData.label}
                             </span>
                           </label>
@@ -693,7 +702,7 @@ export default function Page() {
                     marginBottom: "16px",
                   }}
                 >
-                  📋 Chọn Thành Viên Đội (Tùy Chọn)
+                  Chọn Thành Viên Đội (Tùy Chọn)
                 </h3>
                 <p
                   style={{
@@ -977,7 +986,7 @@ export default function Page() {
                       marginBottom: "12px",
                     }}
                   >
-                    ⛔ Deck chứa những card không hợp lệ hoặc chưa mở khóa, vui
+                    Deck chứa những card không hợp lệ hoặc chưa mở khóa, vui
                     lòng kiểm tra lại.
                   </div>
                   <div
@@ -1017,7 +1026,7 @@ export default function Page() {
                     marginBottom: "12px",
                   }}
                 >
-                  🔍 Lọc Archetype:
+                  Lọc Archetype:
                 </h4>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   {[
@@ -1109,7 +1118,7 @@ export default function Page() {
                           )}
                           {result.respectBonusApplied && (
                             <span style={{ color: "#facc15" }}>
-                              ⭐ Respect Bonus applied
+                              Respect Bonus applied
                             </span>
                           )}
                           {result.rewardCards &&
@@ -1123,7 +1132,7 @@ export default function Page() {
                                     fontWeight: 600,
                                   }}
                                 >
-                                  🎁 Card Thưởng ({result.rewardCards.length})
+                                  Card Thưởng ({result.rewardCards.length})
                                 </summary>
                                 <div
                                   style={{

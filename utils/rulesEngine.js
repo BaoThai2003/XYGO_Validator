@@ -2632,6 +2632,136 @@ export const ARCHETYPE_RULES = {
       },
     ],
   },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // NEW ARCHETYPES — ADDED IN UPDATE
+  // ═════════════════════════════════════════════════════════════════════════
+
+  ADAMANCIPATOR: {
+    label: "Adamancipator",
+    winsRequired: 30,
+    teamCondition: 30,
+    teamConditionType: "wins",
+    description:
+      "Main Deck: ≥ 15 Rock Monster. Extra Deck: ≥ 4 Synchro Monster. Team: ≥ 30/180 wins.",
+    checks: [
+      ({ mainDeck }) => {
+        const rocks = mainDeck.filter((c) => c.isMonster && c.race === "Rock");
+        const count = rocks.length;
+        const required = 15;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Rock Monster: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Rock Monster không đủ: ${count}/${required} lá.`,
+          detail: `Rock: ${count}`,
+        };
+      },
+      ({ extraDeck }) => {
+        const synchos = extraDeck.filter((c) => c.isSynchro);
+        const count = synchos.length;
+        const required = 4;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Synchro Monster (Extra): ${count} (yêu cầu ≥ ${required})`
+              : `✗ Synchro Monster không đủ: ${count}/${required} lá.`,
+          detail: `Synchro: ${count}`,
+        };
+      },
+    ],
+  },
+
+  ATLANTEAN: {
+    label: "Atlantean",
+    winsRequired: 20,
+    teamCondition: 20,
+    teamConditionType: "wins",
+    description:
+      "Main Deck: ≥ 15 WATER Monster (trong đó ≥ 5 Sea Serpent). Team: ≥ 20/180 wins.",
+    checks: [
+      ({ mainDeck }) => {
+        const water = mainDeck.filter(
+          (c) => c.isMonster && c.attribute === "WATER",
+        );
+        const count = water.length;
+        const required = 15;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ WATER Monster: ${count} (yêu cầu ≥ ${required})`
+              : `✗ WATER Monster không đủ: ${count}/${required} lá.`,
+          detail: `WATER: ${count}`,
+        };
+      },
+      ({ mainDeck }) => {
+        const seaSerpent = mainDeck.filter(
+          (c) => c.isMonster && c.race === "Sea Serpent",
+        );
+        const count = seaSerpent.length;
+        const required = 5;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Sea Serpent Monster: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Sea Serpent Monster không đủ: ${count}/${required} lá.`,
+          detail: `Sea Serpent: ${count}`,
+        };
+      },
+    ],
+  },
+
+  ANUBIS_SET: {
+    label: "Anubis Set",
+    winsOrLossesRequired: 35,
+    teamCondition: 35,
+    teamConditionType: "winsOrLosses",
+    description:
+      "Main Deck: ≥ 10 Continuous Trap VÀ có Trap Monster / Trap tự triệu hồi thành Monster. Team: ≥ 35/180 trận (thắng hoặc thua). Nếu chưa mở khóa, các lá Anubis the Last Judge / The Man with the Mark / Temple of the Kings / Treasures of the Kings bị coi là Banned.",
+    checks: [
+      ({ mainDeck }) => {
+        const continuousTraps = mainDeck.filter(
+          (c) => c.isTrap && c.cardType?.includes("Continuous"),
+        );
+        const count = continuousTraps.length;
+        const required = 10;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Continuous Trap: ${count} (yêu cầu ≥ ${required})`
+              : `✗ Continuous Trap không đủ: ${count}/${required} lá.`,
+          detail: `Continuous Trap: ${count}`,
+        };
+      },
+      ({ mainDeck }) => {
+        // Detect Trap Monsters or Traps that can special summon themselves as monsters
+        // These are typically identified by frameType "trap_monster" or descriptions mentioning special summon from trap zone
+        const trapMonsters = mainDeck.filter(
+          (c) =>
+            c.frameType?.toLowerCase().includes("trap") ||
+            (c.isTrap &&
+              (c.desc?.toLowerCase().includes("special summon") ||
+                c.desc?.toLowerCase().includes("monster zone") ||
+                c.desc?.toLowerCase().includes("trap zone"))),
+        );
+        const count = trapMonsters.length;
+        const required = 1;
+        return {
+          pass: count >= required,
+          message:
+            count >= required
+              ? `✓ Trap Monster / Trap có thể triệu hồi Monster: ${count}`
+              : `✗ Cần ít nhất 1 Trap Monster hoặc Trap có khả năng triệu hồi Monster.`,
+          detail: `Trap Monster: ${count}`,
+        };
+      },
+    ],
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
