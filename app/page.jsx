@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { validateDeckBanlist } from "../utils/banlist";
 import { ARCHETYPE_RULES, calculateArchetypeBonus } from "@/utils/rulesEngine";
 
@@ -169,7 +169,11 @@ export default function Page() {
       if (!res.ok || data.error) {
         setError(data.error ?? `${i18n.error} ${res.status}`);
       } else {
-        setResults(data);
+        // Check for unlocked archetype violations
+        const unlockedSet = new Set(selectedArchetypes);
+        const violations = data.unlockedViolations || [];
+
+        setResults({ ...data, unlockedViolations: violations });
         setDeckStats(parseDeckStats(data));
         const banlistCheck = validateDeckBanlist(
           data.deck?.main || [],
@@ -184,7 +188,14 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
-  }, [deckString, selectedTeamMembers]);
+  }, [
+    deckString,
+    selectedTeamMembers,
+    selectedArchetypes,
+    teamWins,
+    teamLosses,
+    archetypeBonuses,
+  ]);
 
   const handleClear = () => {
     setDeckString("");
@@ -217,6 +228,7 @@ export default function Page() {
       deckStats,
       banlistValidation: banlistResults,
       archetypeResults: results.results,
+      unlockedViolations: results.unlockedViolations || [],
     };
     const dataStr = JSON.stringify(exportData, null, 2);
     const dataBlob = new Blob([dataStr], { type: "application/json" });
@@ -228,6 +240,7 @@ export default function Page() {
     URL.revokeObjectURL(url);
   };
 
+  // Full reset
   const handleReset = () => {
     setStep(1);
     setTeamWins("");
@@ -242,32 +255,62 @@ export default function Page() {
     setFilterType("all");
   };
 
+  // Go back to step 1, keep all data
+  const handleBackToStep1 = () => {
+    setStep(1);
+  };
+
+  // Go back to step 2 from step 3, keep all data
+  const handleEditDeck = () => {
+    setStep(2);
+  };
+
   const filterArchetypeResults = () => {
-    if (!results) return { passed: [], failed: [] };
+    if (!results) return { passed: [], failed: [], winsOrLosses: [] };
     const allEntries = Object.entries(results.results || {});
-    const passedArchetypes = allEntries
+
+    // Separate winsOrLosses archetypes first
+    const winsOrLossesEntries = allEntries.filter(([key]) => {
+      const arch = ARCHETYPE_RULES[key];
+      return arch?.teamConditionType === "winsOrLosses";
+    });
+
+    const regularEntries = allEntries.filter(([key]) => {
+      const arch = ARCHETYPE_RULES[key];
+      return arch?.teamConditionType !== "winsOrLosses";
+    });
+
+    const passedArchetypes = regularEntries
       .filter(([_, result]) => result.overallPass)
       .map(([key, result]) => ({ key, result }));
-    const failedArchetypes = allEntries
+    const failedArchetypes = regularEntries
       .filter(([_, result]) => !result.overallPass)
       .map(([key, result]) => ({ key, result }));
+    const winsOrLossesArchetypes = winsOrLossesEntries.map(([key, result]) => ({
+      key,
+      result,
+    }));
 
     if (filterType === "all") {
-      return { passed: passedArchetypes, failed: failedArchetypes };
+      return {
+        passed: passedArchetypes,
+        failed: failedArchetypes,
+        winsOrLosses: winsOrLossesArchetypes,
+      };
     }
 
-    // Use the raw winsRequired / lossesRequired from the result
-    // These come from validateDeck which now returns (archetype.winsRequired || 0) values
-    // An archetype with ONLY winsRequired will have lossesRequired === 0 (after NaN fix)
-    // An archetype with ONLY lossesRequired will have winsRequired === 0
-    // An archetype with BOTH will have both > 0
     const filterByType = (archetypes) => {
-      return archetypes.filter(({ result }) => {
+      return archetypes.filter(({ key, result }) => {
+        const arch = ARCHETYPE_RULES[key];
+        const type = arch?.teamConditionType || "wins";
         const hasWins = (result.winsRequired ?? 0) > 0;
         const hasLosses = (result.lossesRequired ?? 0) > 0;
-        if (filterType === "wins") return hasWins && !hasLosses;
-        if (filterType === "losses") return hasLosses && !hasWins;
-        if (filterType === "both") return hasWins && hasLosses;
+        if (filterType === "wins")
+          return hasWins && !hasLosses && type !== "both";
+        if (filterType === "losses")
+          return hasLosses && !hasWins && type !== "both";
+        if (filterType === "both") return type === "both";
+        if (filterType === "winsOrLosses") return type === "winsOrLosses";
         return true;
       });
     };
@@ -275,11 +318,22 @@ export default function Page() {
     return {
       passed: filterByType(passedArchetypes),
       failed: filterByType(failedArchetypes),
+      winsOrLosses:
+        filterType === "all" || filterType === "winsOrLosses"
+          ? winsOrLossesArchetypes
+          : [],
     };
   };
 
-  const { passed: passedArchetypes, failed: failedArchetypes } =
-    filterArchetypeResults();
+  const {
+    passed: passedArchetypes,
+    failed: failedArchetypes,
+    winsOrLosses: winsOrLossesArchetypes,
+  } = filterArchetypeResults();
+
+  // Has any unlocked violation
+  const hasUnlockedViolations =
+    results?.unlockedViolations && results.unlockedViolations.length > 0;
 
   return (
     <>
@@ -292,7 +346,7 @@ export default function Page() {
         }}
       >
         <main className="px-6 sm:px-8 lg:px-16 py-8 max-w-7xl mx-auto space-y-8">
-          {/* Logo Section - Top Left Corner */}
+          {/* Logo Section */}
           <div style={{ marginBottom: "12px", marginTop: "-4px" }}>
             <img
               src="/logo.jpg"
@@ -310,7 +364,9 @@ export default function Page() {
             />
           </div>
 
+          {/* ──────────────────────────────────────────────── */}
           {/* STEP 1: TEAM STATS */}
+          {/* ──────────────────────────────────────────────── */}
           {step === 1 && (
             <div className="animate-fade-in">
               <div className="flex items-center justify-between mb-8">
@@ -382,11 +438,14 @@ export default function Page() {
                       {selectedArchetypes.length})
                     </label>
                     <div
-                      className="rounded-xl p-4 space-y-3 max-h-64 overflow-y-auto glass-light"
+                      className="rounded-xl p-4 max-h-64 overflow-y-auto glass-light"
                       style={{
                         background: "rgba(2, 8, 22, 0.85)",
                         border: "1px solid rgba(100,116,139,0.4)",
                         backdropFilter: "blur(10px)",
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3, 1fr)",
+                        gap: "8px",
                       }}
                     >
                       {allArchetypeKeys.map((archKey) => {
@@ -414,12 +473,16 @@ export default function Page() {
                                   );
                                 }
                               }}
-                              className="mr-3 w-4 h-4 rounded"
                               style={{
                                 accentColor: "#34d399",
+                                width: "17px",
+                                height: "17px",
+                                flexShrink: 0,
+                                marginRight: "6px",
+                                cursor: "pointer",
                               }}
                             />
-                            <span style={{ fontSize: "12px" }}>
+                            <span style={{ fontSize: "11px", lineHeight: 1.3 }}>
                               {archData.label}
                             </span>
                           </label>
@@ -480,7 +543,7 @@ export default function Page() {
                   </button>
                 </div>
 
-                {/* Summary */}
+                {/* Summary Panel */}
                 <div className="lg:col-span-2">
                   <div
                     className="rounded-2xl p-8 glass-glow animate-fade-in"
@@ -545,7 +608,6 @@ export default function Page() {
                       </div>
                     ))}
 
-                    {/* Bonus Breakdown */}
                     {selectedArchetypes.length > 0 &&
                       Object.keys(archetypeBonuses).some(
                         (arch) => archetypeBonuses[arch].total > 0,
@@ -618,7 +680,9 @@ export default function Page() {
             </div>
           )}
 
+          {/* ──────────────────────────────────────────────── */}
           {/* STEP 2: DECK INPUT */}
+          {/* ──────────────────────────────────────────────── */}
           {step === 2 && (
             <div className="animate-fade-in space-y-8">
               {/* Team Member Selection */}
@@ -638,7 +702,7 @@ export default function Page() {
                     marginBottom: "16px",
                   }}
                 >
-                  📋 Chọn Thành Viên Đội (Tùy Chọn)
+                  Chọn Thành Viên Đội (Tùy Chọn)
                 </h3>
                 <p
                   style={{
@@ -797,8 +861,9 @@ export default function Page() {
                       {loading ? i18n.analyzingDeck : i18n.validateDeck}
                     </button>
 
+                    {/* Back to step 1 - preserves all data */}
                     <button
-                      onClick={() => setStep(1)}
+                      onClick={handleBackToStep1}
                       className="px-8 py-4 rounded-xl text-base font-bold uppercase transition-all"
                       style={{
                         background: "rgba(255,255,255,0.04)",
@@ -830,7 +895,9 @@ export default function Page() {
             </div>
           )}
 
+          {/* ──────────────────────────────────────────────── */}
           {/* STEP 3: RESULTS */}
+          {/* ──────────────────────────────────────────────── */}
           {step === 3 && results && (
             <div className="animate-fade-in space-y-8">
               {/* Header */}
@@ -843,36 +910,104 @@ export default function Page() {
                     {i18n.validationResults}
                   </h2>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-3 flex-wrap">
+                  {/* Edit Deck — goes back to step 2, keeps data */}
+                  <button
+                    onClick={handleEditDeck}
+                    className="px-6 py-3 rounded-xl font-bold uppercase tracking-wide transition-all"
+                    style={{
+                      background: "rgba(168,85,247,0.15)",
+                      color: "#d8b4fe",
+                      border: "1px solid rgba(168,85,247,0.4)",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                    }}
+                  >
+                    ✏️ Chỉnh Sửa Deck
+                  </button>
+                  {/* Back to step 1, keeps data */}
+                  <button
+                    onClick={handleBackToStep1}
+                    className="px-6 py-3 rounded-xl font-bold uppercase tracking-wide transition-all"
+                    style={{
+                      background: "rgba(99,102,241,0.15)",
+                      color: "#a5b4fc",
+                      border: "1px solid rgba(99,102,241,0.4)",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                    }}
+                  >
+                    ← Sửa Thông Tin Đội
+                  </button>
                   <button
                     onClick={handleExportResults}
-                    className="px-8 py-4 rounded-xl font-bold uppercase tracking-wide transition-all"
+                    className="px-6 py-3 rounded-xl font-bold uppercase tracking-wide transition-all"
                     style={{
                       background:
                         "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
                       color: "#fff",
                       border: "none",
                       cursor: "pointer",
-                      fontSize: "14px",
+                      fontSize: "13px",
                     }}
                   >
                     📥 Xuất Kết Quả
                   </button>
                   <button
                     onClick={handleReset}
-                    className="px-8 py-4 rounded-xl font-bold uppercase tracking-wide transition-all"
+                    className="px-6 py-3 rounded-xl font-bold uppercase tracking-wide transition-all"
                     style={{
                       background: "rgba(255,255,255,0.04)",
                       color: "rgba(148,163,184,0.8)",
                       border: "1px solid rgba(255,255,255,0.08)",
                       cursor: "pointer",
-                      fontSize: "14px",
+                      fontSize: "13px",
                     }}
                   >
                     Kiểm Tra Deck Mới
                   </button>
                 </div>
               </div>
+
+              {/* Unlocked Violation Warning */}
+              {hasUnlockedViolations && (
+                <div
+                  className="p-6 rounded-2xl"
+                  style={{
+                    background: "rgba(239,68,68,0.12)",
+                    border: "2px solid rgba(239,68,68,0.5)",
+                  }}
+                >
+                  <div
+                    style={{
+                      color: "#fca5a5",
+                      fontSize: "18px",
+                      fontWeight: 700,
+                      marginBottom: "12px",
+                    }}
+                  >
+                    Deck chứa những card không hợp lệ hoặc chưa mở khóa, vui
+                    lòng kiểm tra lại.
+                  </div>
+                  <div
+                    style={{
+                      color: "rgba(252,165,165,0.85)",
+                      fontSize: "14px",
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    <div style={{ marginBottom: "6px", fontWeight: 600 }}>
+                      Archetype vi phạm:
+                    </div>
+                    {results.unlockedViolations.map((v, idx) => (
+                      <div key={idx} style={{ paddingLeft: "16px" }}>
+                        • {v.archetypeLabel} — chưa được tick trong mục
+                        Archetypes Mở Khóa
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Filter */}
               <div
@@ -891,14 +1026,15 @@ export default function Page() {
                     marginBottom: "12px",
                   }}
                 >
-                  🔍 Lọc Archetype:
+                  Lọc Archetype:
                 </h4>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   {[
                     { value: "all", label: "Tất Cả" },
-                    { value: "wins", label: "Yêu Cầu Wins" },
-                    { value: "losses", label: "Yêu Cầu Losses" },
-                    { value: "both", label: "Cả 2 Yêu Cầu" },
+                    { value: "wins", label: "Chỉ Thắng" },
+                    { value: "losses", label: "Chỉ Thua" },
+                    { value: "both", label: "Cả Thắng Và Thua" },
+                    { value: "winsOrLosses", label: "Thắng Hoặc Thua" },
                   ].map((option) => (
                     <button
                       key={option.value}
@@ -975,17 +1111,159 @@ export default function Page() {
                               ✓ Losses: {result.lossesRequired}+ đạt
                             </span>
                           )}
-                          {result.respectBonusApplied && (
-                            <span style={{ color: "#facc15" }}>
-                              ⭐ Respect Bonus applied
+                          {(result.winsOrLossesRequired ?? 0) > 0 && (
+                            <span style={{ color: "#6ee7b7" }}>
+                              ✓ Tổng trận: {result.winsOrLossesRequired}+ đạt
                             </span>
                           )}
+                          {result.respectBonusApplied && (
+                            <span style={{ color: "#facc15" }}>
+                              Respect Bonus applied
+                            </span>
+                          )}
+                          {result.rewardCards &&
+                            result.rewardCards.length > 0 && (
+                              <details style={{ marginTop: "6px" }}>
+                                <summary
+                                  style={{
+                                    color: "#facc15",
+                                    cursor: "pointer",
+                                    fontSize: "11px",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Card Thưởng ({result.rewardCards.length})
+                                </summary>
+                                <div
+                                  style={{
+                                    marginTop: "4px",
+                                    paddingLeft: "8px",
+                                    color: "rgba(250,204,21,0.8)",
+                                    fontSize: "11px",
+                                    lineHeight: 1.6,
+                                  }}
+                                >
+                                  {result.rewardCards.map((c, i) => (
+                                    <div key={i}>• {c}</div>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* Wins Or Losses Archetypes (separate section) */}
+              {(filterType === "all" || filterType === "winsOrLosses") &&
+                winsOrLossesArchetypes.length > 0 && (
+                  <div>
+                    <h3
+                      className="text-2xl font-black mb-6"
+                      style={{ color: "#fb923c" }}
+                    >
+                      ⇄ Thắng Hoặc Thua ({winsOrLossesArchetypes.length})
+                    </h3>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {winsOrLossesArchetypes.map(({ key, result }) => {
+                        const isPassed = result.overallPass;
+                        return (
+                          <div
+                            key={key}
+                            className="rounded-xl p-6 glass-glow"
+                            style={{
+                              background: isPassed
+                                ? "linear-gradient(135deg, rgba(251,146,60,0.12) 0%, rgba(251,146,60,0.06) 100%)"
+                                : "linear-gradient(135deg, rgba(30,30,40,0.95) 0%, rgba(20,20,32,0.98) 100%)",
+                              border: isPassed
+                                ? "1px solid rgba(251,146,60,0.35)"
+                                : "1px solid rgba(107,114,128,0.3)",
+                            }}
+                          >
+                            <h4
+                              style={{
+                                color: isPassed
+                                  ? "#fdba74"
+                                  : "rgba(209,213,219,0.9)",
+                                fontSize: "16px",
+                                fontWeight: 700,
+                                marginBottom: "10px",
+                              }}
+                            >
+                              {result.archetypeLabel || key}
+                            </h4>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                lineHeight: 1.7,
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "3px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color: result.deckConditionMet
+                                    ? "#6ee7b7"
+                                    : "#fca5a5",
+                                }}
+                              >
+                                {result.deckConditionMet ? "✓" : "✗"} Deck:{" "}
+                                {result.deckConditionMet
+                                  ? "Đủ điều kiện"
+                                  : "Không đủ yêu cầu"}
+                              </span>
+                              {(result.winsOrLossesRequired ?? 0) > 0 && (
+                                <span
+                                  style={{
+                                    color: result.winsOrLossesConditionMet
+                                      ? "#6ee7b7"
+                                      : "#fca5a5",
+                                  }}
+                                >
+                                  {result.winsOrLossesConditionMet ? "✓" : "✗"}{" "}
+                                  Tổng trận: {result.winsOrLossesRequired} yêu
+                                  cầu
+                                </span>
+                              )}
+                              {result.rewardCards &&
+                                result.rewardCards.length > 0 && (
+                                  <details style={{ marginTop: "6px" }}>
+                                    <summary
+                                      style={{
+                                        color: "#facc15",
+                                        cursor: "pointer",
+                                        fontSize: "11px",
+                                        fontWeight: 600,
+                                      }}
+                                    >
+                                      🎁 Card Thưởng (
+                                      {result.rewardCards.length})
+                                    </summary>
+                                    <div
+                                      style={{
+                                        marginTop: "4px",
+                                        paddingLeft: "8px",
+                                        color: "rgba(250,204,21,0.8)",
+                                        fontSize: "11px",
+                                        lineHeight: 1.6,
+                                      }}
+                                    >
+                                      {result.rewardCards.map((c, i) => (
+                                        <div key={i}>• {c}</div>
+                                      ))}
+                                    </div>
+                                  </details>
+                                )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
               {/* Failed Archetypes */}
               {failedArchetypes.length > 0 && (
@@ -1070,7 +1348,8 @@ export default function Page() {
               )}
 
               {passedArchetypes.length === 0 &&
-                failedArchetypes.length === 0 && (
+                failedArchetypes.length === 0 &&
+                winsOrLossesArchetypes.length === 0 && (
                   <div
                     className="p-8 rounded-2xl text-center text-xl"
                     style={{

@@ -4,12 +4,13 @@
  * Next.js App Router API Route — POST /api/validate
  *
  * Flow:
- *  1. Nhận { deckString: string, archetype: string } từ body.
- *  2. Phát hiện format (YDKE hay YDK text).
- *  3. Parse → mảng passcode cho main/extra/side.
- *  4. Map passcode → CardData qua card database.
- *  5. Chạy Rules Engine.
- *  6. Trả JSON kết quả.
+ *  1. Nhận { deckString, archetype?, validateAll?, selectedArchetypes, ... }
+ *  2. Phát hiện format (YDKE hay YDK text)
+ *  3. Parse → mảng passcode cho main/extra/side
+ *  4. Map passcode → CardData qua card database
+ *  5. Chạy Rules Engine
+ *  6. Kiểm tra archetype chưa mở khóa (unlockedViolations)
+ *  7. Trả JSON kết quả
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -24,15 +25,6 @@ import { validateDeckBanlist } from "@/utils/banlist";
 
 // ─── YDKE Parser ──────────────────────────────────────────────────────────────
 
-/**
- * Parse chuỗi ydke:// thành { main, extra, side } mảng passcode.
- * Format: ydke://<base64_main>!<base64_extra>!<base64_side>!
- *
- * Mỗi segment là base64 của chuỗi bytes chứa passcode dạng Uint32 (little-endian, 4 byte/card).
- *
- * @param {string} ydkeString
- * @returns {{ main: number[], extra: number[], side: number[] }}
- */
 function parseYDKE(ydkeString) {
   const trimmed = ydkeString.trim();
 
@@ -42,11 +34,9 @@ function parseYDKE(ydkeString) {
     );
   }
 
-  // Bỏ prefix "ydke://" và split theo "!"
   const body = trimmed.slice("ydke://".length);
   const parts = body.split("!");
 
-  // Phải có ít nhất 3 phần (main!extra!side)
   if (parts.length < 3) {
     throw new Error(
       `YDKE không hợp lệ: cần ít nhất 3 segment (main!extra!side), chỉ có ${parts.length}.`,
@@ -62,18 +52,11 @@ function parseYDKE(ydkeString) {
   };
 }
 
-/**
- * Decode một base64 segment thành mảng passcode (Uint32 little-endian).
- * @param {string} b64
- * @param {string} segName   - Tên segment để debug
- * @returns {number[]}
- */
 function decodeSegment(b64, segName) {
   if (!b64) return [];
 
   let buffer;
   try {
-    // Node.js: dùng Buffer; Browser fallback: atob
     if (typeof Buffer !== "undefined") {
       buffer = Buffer.from(b64, "base64");
     } else {
@@ -109,21 +92,6 @@ function decodeSegment(b64, segName) {
 
 // ─── YDK Text Parser ──────────────────────────────────────────────────────────
 
-/**
- * Parse nội dung file .ydk (text thuần) thành { main, extra, side }.
- *
- * Format YDK:
- *   #main
- *   123456789
- *   987654321
- *   #extra
- *   111111111
- *   !side
- *   222222222
- *
- * @param {string} ydkText
- * @returns {{ main: number[], extra: number[], side: number[] }}
- */
 function parseYDK(ydkText) {
   const lines = ydkText
     .split(/\r?\n/)
@@ -134,7 +102,6 @@ function parseYDK(ydkText) {
   let currentSection = null;
 
   for (const line of lines) {
-    // Nhận biết section header
     if (line === "#main") {
       currentSection = "main";
       continue;
@@ -147,7 +114,6 @@ function parseYDK(ydkText) {
       currentSection = "side";
       continue;
     }
-    // Bỏ qua comment hoặc dòng không phải số
     if (line.startsWith("#") || line.startsWith("!") || line.startsWith("//")) {
       continue;
     }
@@ -169,11 +135,6 @@ function parseYDK(ydkText) {
 
 // ─── Auto-detect Format ───────────────────────────────────────────────────────
 
-/**
- * Tự động nhận biết YDKE vs YDK và parse.
- * @param {string} input
- * @returns {{ main: number[], extra: number[], side: number[] }}
- */
 function parseDeckInput(input) {
   const trimmed = input.trim();
 
@@ -181,7 +142,6 @@ function parseDeckInput(input) {
     return parseYDKE(trimmed);
   }
 
-  // Kiểm tra xem có dạng YDK không (chứa #main hoặc #extra)
   if (trimmed.includes("#main") || trimmed.includes("#extra")) {
     return parseYDK(trimmed);
   }
@@ -193,14 +153,6 @@ function parseDeckInput(input) {
 
 // ─── Map Passcodes → CardData ─────────────────────────────────────────────────
 
-/**
- * Chuyển mảng passcode thành mảng CardData.
- * Card không tìm thấy trong DB sẽ được ghi nhận vào unknownIds.
- *
- * @param {number[]} ids
- * @param {Map<number, CardData>} db
- * @returns {{ cards: CardData[], unknownIds: number[] }}
- */
 function mapIdsToCards(ids, db) {
   const cards = [];
   const unknownIds = [];
@@ -217,9 +169,8 @@ function mapIdsToCards(ids, db) {
   return { cards, unknownIds };
 }
 
-// ─── Route Handler ────────────────────────────────────────────────────────────
+// ─── Apply Archetype Bonuses ──────────────────────────────────────────────────
 
-// Helper function to apply archetype bonuses to validation results
 function applyArchetypeBonuses(
   validationResult,
   archetypeKey,
@@ -242,16 +193,15 @@ function applyArchetypeBonuses(
     (validationResult.lossesRequired || 0) - bonus,
   );
 
-  // Recalculate conditions with new requirements
-  const winsConditionMet =
-    validationResult.winsConditionMet === false
-      ? false
-      : !validationResult.winsRequired || teamWins >= newWinsRequired;
+  const winsConditionMet = newWinsRequired === 0 || teamWins >= newWinsRequired;
   const lossesConditionMet =
-    validationResult.lossesConditionMet === false
-      ? false
-      : !validationResult.lossesRequired || teamLosses >= newLossesRequired;
-  const teamConditionMet = winsConditionMet && lossesConditionMet;
+    newLossesRequired === 0 || teamLosses >= newLossesRequired;
+  const winsOrLossesConditionMet =
+    validationResult.winsOrLossesConditionMet !== false
+      ? validationResult.winsOrLossesConditionMet
+      : false;
+  const teamConditionMet =
+    winsConditionMet && lossesConditionMet && winsOrLossesConditionMet;
 
   return {
     ...validationResult,
@@ -268,6 +218,35 @@ function applyArchetypeBonuses(
     },
   };
 }
+
+// ─── Detect which archetypes are present in a deck ────────────────────────────
+
+/**
+ * For each archetype in ARCHETYPE_RULES, run its deck checks against the deck.
+ * Returns list of archetypeKeys whose deck condition is met (i.e. cards are present).
+ * Used to detect unlocked violations.
+ */
+function detectArchetypesInDeck(mainDeck, extraDeck, sideDeck) {
+  const detected = [];
+  const allCards = { mainDeck, extraDeck, sideDeck };
+
+  for (const [key, archetype] of Object.entries(ARCHETYPE_RULES)) {
+    if (!archetype.checks || archetype.checks.length === 0) continue;
+    try {
+      const checkResults = archetype.checks.map((check) => check(allCards));
+      // Deck condition met = archetype's card requirements are satisfied in this deck
+      if (checkResults.every((r) => r.pass)) {
+        detected.push(key);
+      }
+    } catch {
+      // Ignore check errors during detection
+    }
+  }
+
+  return detected;
+}
+
+// ─── Route Handler ────────────────────────────────────────────────────────────
 
 export async function POST(request) {
   try {
@@ -291,7 +270,6 @@ export async function POST(request) {
       archetypeBonuses = {},
     } = body;
 
-    // Validate input
     if (!deckString || typeof deckString !== "string" || !deckString.trim()) {
       return NextResponse.json(
         { error: "Thiếu trường `deckString` hoặc bị rỗng." },
@@ -299,7 +277,6 @@ export async function POST(request) {
       );
     }
 
-    // If validateAll is true, we don't need a specific archetype
     const shouldValidateAll = validateAll === true;
 
     if (!shouldValidateAll) {
@@ -333,7 +310,6 @@ export async function POST(request) {
 
     const { main: mainIds, extra: extraIds, side: sideIds } = parsedIds;
 
-    // Kiểm tra deck không rỗng
     if (mainIds.length === 0) {
       return NextResponse.json(
         { error: "Main Deck không có card nào. Kiểm tra lại chuỗi deck." },
@@ -374,12 +350,30 @@ export async function POST(request) {
       ...unknownSide.map((id) => ({ id, zone: "side" })),
     ];
 
-    // 4. Validate - either single archetype or all archetypes
+    // 4. Detect unlocked archetype violations
+    // If a deck satisfies an archetype's deck condition but that archetype
+    // is NOT in selectedArchetypes, it's a violation.
+    const detectedArchetypes = detectArchetypesInDeck(
+      mainDeck,
+      extraDeck,
+      sideDeck,
+    );
+    const unlockedSet = new Set(selectedArchetypes);
+
+    const unlockedViolations = detectedArchetypes
+      .filter((key) => !unlockedSet.has(key))
+      .map((key) => ({
+        archetypeKey: key,
+        archetypeLabel: ARCHETYPE_RULES[key]?.label || key,
+      }));
+
+    // Whether the deck is invalid due to unlocked violations
+    const hasViolations = unlockedViolations.length > 0;
+
     if (shouldValidateAll) {
       // Validate against ALL archetypes
       const allResults = {};
 
-      // Calculate bonuses if selectedArchetypes provided
       const bonusMap =
         selectedArchetypes.length > 0
           ? calculateArchetypeBonus(selectedArchetypes)
@@ -389,17 +383,12 @@ export async function POST(request) {
         try {
           const validationResult = validateDeck(
             archetypeKey,
-            {
-              mainDeck,
-              extraDeck,
-              sideDeck,
-            },
+            { mainDeck, extraDeck, sideDeck },
             parseInt(teamWins) || 0,
             parseInt(teamLosses) || 0,
             teamMembers,
           );
 
-          // Apply bonuses if this archetype is selected
           allResults[archetypeKey] = applyArchetypeBonuses(
             validationResult,
             archetypeKey,
@@ -415,7 +404,17 @@ export async function POST(request) {
         }
       }
 
-      // 5. Build response for validateAll
+      // If there are violations, mark all results as failed
+      if (hasViolations) {
+        for (const key of Object.keys(allResults)) {
+          allResults[key] = {
+            ...allResults[key],
+            overallPass: false,
+            unlockedViolation: true,
+          };
+        }
+      }
+
       const banlistValidation = validateDeckBanlist(
         mainDeck,
         extraDeck,
@@ -426,6 +425,8 @@ export async function POST(request) {
         success: true,
         validateAll: true,
         results: allResults,
+        unlockedViolations,
+        hasUnlockedViolations: hasViolations,
         deck: {
           main: mainDeck,
           extra: extraDeck,
@@ -458,11 +459,7 @@ export async function POST(request) {
       try {
         validationResult = validateDeck(
           archetype,
-          {
-            mainDeck,
-            extraDeck,
-            sideDeck,
-          },
+          { mainDeck, extraDeck, sideDeck },
           parseInt(teamWins) || 0,
           parseInt(teamLosses) || 0,
           teamMembers,
@@ -474,7 +471,15 @@ export async function POST(request) {
         );
       }
 
-      // 5. Build response for single archetype
+      // If violations, override pass result
+      if (hasViolations) {
+        validationResult = {
+          ...validationResult,
+          overallPass: false,
+          unlockedViolation: true,
+        };
+      }
+
       const banlistValidation = validateDeckBanlist(
         mainDeck,
         extraDeck,
@@ -485,6 +490,8 @@ export async function POST(request) {
         success: true,
         archetype,
         ...validationResult,
+        unlockedViolations,
+        hasUnlockedViolations: hasViolations,
         deck: {
           main: mainDeck,
           extra: extraDeck,
@@ -523,6 +530,11 @@ export async function GET() {
     key,
     label: rule.label,
     description: rule.description,
+    teamConditionType: rule.teamConditionType || "wins",
+    winsRequired: rule.winsRequired || 0,
+    lossesRequired: rule.lossesRequired || 0,
+    winsOrLossesRequired: rule.winsOrLossesRequired || 0,
+    rewardCards: rule.rewardCards || null,
   }));
 
   return NextResponse.json({ archetypes });
